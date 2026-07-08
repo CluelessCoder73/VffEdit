@@ -147,7 +147,7 @@ class VffEditApp:
         self.status_text.delete(1.0, tk.END)
         self.status_text.insert(tk.END, f"Found {len(videos)} Video Files\n")
         self.status_text.insert(tk.END, f"Found {len(logs)} Frame Logs\n")
-        self.status_text.insert(tk.END, f"Found {len(vdscripts)} Original VDScripts\n")
+        self.status_text.insert(tk.END, f"Found {len(vdscripts)} VDScripts\n")
         self.status_text.insert(tk.END, f"Found {len(adjusted)} Adjusted Cutlists\n")
         self.status_text.config(state="disabled")
         
