@@ -132,8 +132,8 @@ def batch_process_vdscripts(directory, output_file):
                     if gop_sizes:
                         # Write the vdscript name and GOP sizes
                         outfile.write(f"Name: \"{filename}\"\n")
-                        for size in gop_sizes:
-                            outfile.write(f"{size}\n")
+                        for idx, size in enumerate(gop_sizes, start=1):
+                            outfile.write(f"{idx} - {size}\n")
                         
                         # Calculate and write the smallest GOP size for this vdscript
                         smallest = min(gop_sizes)
