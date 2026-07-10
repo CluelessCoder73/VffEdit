@@ -1,6 +1,6 @@
 # VffEdit (Formerly ExactCut Video Tools)
 
-Welcome to **VffEdit**, the centralized graphical orchestrator for the ExactCut video editing and frame-accurate cutting pipeline. 
+Welcome to **VffEdit**, the centralized graphical orchestrator for your video editing and frame-accurate cutting pipeline. 
 
 VffEdit replaces scattered batch files and manual directory management with a single, unified interface (`vffedit.pyw`) that manages project states, executes background Python scripts, and pipes real-time outputs straight to an integrated console log.
 
@@ -21,8 +21,8 @@ VffEdit/
     ├── vdscript_vfr_info.py
     ├── vdscript_to_timecode_cutlist_generator.py
     ├── vdscript_to_cpf.py
-    ├── exactcut_vfr_detector.pyw
-    └── exactcut_ffmpeg_cutter.pyw
+    ├── vfr_detector.pyw
+    └── ffmpeg_cutter.pyw
 
 ```
 
@@ -52,18 +52,18 @@ Click the **VirtualDub2 Info** button in the GUI for a quick reminder of the edi
 * Adjusts the original `.vdscript` cuts based on your offset/gap math.
 * Runs the GOP Analyzer to map keyframes (`gop_info.txt`).
 * Generates VFR-aware informational logs.
-* Outputs the finalized, clean `.cutlist.txt` files.
+* Outputs the finalized `.cutlist.txt` files.
 
 
 
 ### 4. Lossless Cutting
 
-* **Step 4: Launch FFmpeg Cutter:** Opens the standalone `exactcut_ffmpeg_cutter.pyw` GUI utility to losslessly slice your videos using your newly tailored cutlists.
+* **Step 4: Launch FFmpeg Cutter:** Opens the standalone `ffmpeg_cutter.pyw` GUI utility to losslessly slice your videos using your newly tailored cutlists.
 
 ### 5. Merge
 
 Open LosslessCut, go to Tools > Merge/concatenate files, browse for desired folder, select all the parts, then merge. Repeat this process until all the parts in each subfolder have been merged - & that's it - FINITO!
-* **Cleanup:** Use the **🧹 Cleanup** button inside the ExactCut FFmpeg Cutter to automatically sweep all the leftover files (cutlists, log files etc) into a `delete` folder to keep your workspace tidy.
+* **Cleanup:** Use the **🧹 Cleanup** button inside the FFmpeg Cutter to automatically sweep all the leftover files (cutlists, log files etc) into a `delete` folder to keep your workspace tidy.
 
 ---
 
