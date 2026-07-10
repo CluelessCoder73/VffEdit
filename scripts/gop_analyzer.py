@@ -1,6 +1,6 @@
 """
 ================================================================================
-VffEdit GOP Analyzer (gop_analyzer.py)
+GOP Analyzer (gop_analyzer.py)
 ================================================================================
 
 PURPOSE:
@@ -9,7 +9,7 @@ your adjusted VirtualDub script files ("_adjusted.vdscript") to determine the
 size of the starting GOP (Group of Pictures) for every single cut segment.
 
 WHY DOES THIS MATTER?
-In the VffEdit FFmpeg Cutter, we use a "Start Offset (ms)" (a Seek Nudge) to 
+In the FFmpeg Cutter, we use a "Start Offset (ms)" (a Seek Nudge) to 
 push FFmpeg slightly past the cut point, forcing it to snap to the correct 
 keyframe. 
 
@@ -36,7 +36,7 @@ with a summary at the bottom:
     Smallest starting GOP in all vdscripts: 17 frames ("video2.mp4_adjusted.vdscript")
 
 ================================================================================
-HOW TO FIX ULTRA-SHORT GOPs USING VFFEDIT FFMPEG CUTTER
+HOW TO FIX ULTRA-SHORT GOPs USING THE FFMPEG CUTTER
 ================================================================================
 If the "Smallest starting GOP" is comfortably larger than your intended Seek Nudge 
 (e.g., the smallest GOP is 250 frames, and you are only nudging by 8 frames), 
@@ -45,10 +45,10 @@ you are perfectly safe! Do nothing.
 However, if the smallest starting GOP is dangerously small (e.g., 6 frames), 
 you MUST take action to avoid losing frames. You have two options:
 
-METHOD 1: Expand the Segment using the VffEdit Editor (Recommended)
+METHOD 1: Expand the Segment using the FFmpeg Cutter Editor (Recommended)
 By pushing the start of the offending segment back to an earlier keyframe, you 
 absorb the tiny GOP safely into the middle of the video segment.
-    1. Open VffEdit FFmpeg Cutter.
+    1. Open the FFmpeg Cutter.
     2. Open the "✏️ Editor" tool and load your `.cutlist.txt`.
     3. Look at `gop_info.txt` to identify which segment # has the tiny GOP.
     4. In the Editor, use "1. Expand Start Earlier" on that Line #. 
@@ -58,7 +58,7 @@ absorb the tiny GOP safely into the middle of the video segment.
 METHOD 2: Lower your Seek Nudge using the Calculator
 If you don't want to change your cut points, you must make your Seek Nudge 
 smaller than the tiny GOP.
-    1. Open VffEdit FFmpeg Cutter.
+    1. Open the FFmpeg Cutter.
     2. Open the "🧮 Calculator" tool.
     3. Enter your video's FPS.
     4. Enter a frame count strictly LESS than the "Smallest starting GOP". 
