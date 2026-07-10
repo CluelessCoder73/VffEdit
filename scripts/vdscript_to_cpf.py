@@ -14,17 +14,7 @@ from pathlib import Path
 
 # quickly create Cuttermaran project files from frame-accurate cuts
 
-# prepared by the ExactCut workflow.
-
-#
-
-# This script was tested and works with:
-
-# - Python 3.13.7
-
-# - VirtualDub2 (build 44282) .vdscript files
-
-# - Cuttermaran 1.70
+# prepared by the VffEdit workflow.
 
 #
 

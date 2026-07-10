@@ -2,14 +2,10 @@ import os
 import re
 from pathlib import Path
 
-# --- ExactCut Video Tools: VFR-Aware Cutlist Generator ---
+# --- VffEdit: VFR-Aware Cutlist Generator ---
 # Updated to support Variable Frame Rate (VFR) by calculating 
 # exact durations from frame timestamps rather than a fixed FPS.
 # CLEAN VERSION: No headers, just data.
-# Tested and works with:
-# - Python 3.13.7
-# - VirtualDub2 (build 44282) .vdscript files
-# - "FFmpeg" generated frame log files (the version in LosslessCut 3.68.0)
 
 def parse_showinfo_log(log_path):
     frame_to_pts = {}
@@ -33,7 +29,7 @@ def parse_showinfo_log(log_path):
     return frame_to_pts, sorted(frame_to_pts.keys())
 
 def main():
-    print("--- ExactCut: VFR Cutlist Generator (Clean Format) ---")
+    print("--- VffEdit: VFR Cutlist Generator (Clean Format) ---")
     script_dir = Path.cwd()
     
     adjusted_vdscript_suffix = "_adjusted.vdscript" 

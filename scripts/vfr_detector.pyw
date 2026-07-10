@@ -1,11 +1,8 @@
 r"""
-ExactCut VFR Detector (exactcut_vfr_detector.pyw)
+VFR Detector (vfr_detector.pyw)
 
 This script scans FFmpeg *_frame_log.txt files for Variable Frame Rate (VFR), 
 using forgiving parameters to reduce false positives.
-# Tested and works with:
-# - Python 3.13.7
-# - "FFmpeg" generated frame log files (the version in LosslessCut 3.68.0)
 """
 import os
 import re
@@ -80,7 +77,7 @@ def generate_summary_text(vfr_detected, suspicious_detected):
     elif vfr_detected:
         lines.append("✅  STATUS: VFR DETECTED (HEALTHY)\n")
         lines.append("\nCONFIRMATION: Your videos are healthy and safe to process.\n")
-        lines.append("ExactCut's millisecond precision will handle this perfectly.\n")
+        lines.append("VffEdit's millisecond precision will handle this perfectly.\n")
         lines.append(">>> IT IS SAFE TO PROCEED WITH YOUR PROJECT. <<<\n")
     else:
         lines.append("✅  STATUS: CFR DETECTED (CONSTANT)\n")
@@ -94,7 +91,7 @@ def run_detection_and_save_to_file(folder_path, output_filename="VFR_info.txt",
                                    duration_tolerance=0.001):
     """Batch mode implementation for the .bat workflow."""
     log_files = [f for f in os.listdir(folder_path) if f.endswith('_frame_log.txt')]
-    output_lines = ["--- ExactCut VFR Detector Report ---\n\n"]
+    output_lines = ["--- VFR Detector Report ---\n\n"]
     vfr_detected = False
     suspicious_detected = False
 
@@ -118,7 +115,7 @@ def run_detection_and_save_to_file(folder_path, output_filename="VFR_info.txt",
 class VFRDetectorApp:
     def __init__(self, master):
         self.master = master
-        master.title("ExactCut VFR Detector")
+        master.title("VFR Detector")
         master.geometry("800x750")
         master.configure(bg="#2c3e50")
 

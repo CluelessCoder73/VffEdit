@@ -14,11 +14,6 @@ from pathlib import Path
 # Reads exact timestamps from FFmpeg frame logs.
 # Works with both CFR and VFR sources.
 #
-# This script was tested and works with:
-# - Python 3.13.7
-# - VirtualDub2 (build 44282) .vdscript files
-# - "FFmpeg" generated frame log files (the version in LosslessCut 3.69.0)
-#
 # Usage:
 # 1. Place this script in the folder with your .vdscript and _frame_log.txt files.
 # 2. Run the script.
@@ -205,7 +200,7 @@ def process_vdscript(vdscript_path):
 
 def main():
     folder = Path.cwd()
-    print("--- ExactCut: Vdscript Info Generator (VFR Aware) ---")
+    print("--- VffEdit: Vdscript Info Generator (VFR Aware) ---")
     
     vdscript_files = list(folder.glob("*.vdscript"))
 

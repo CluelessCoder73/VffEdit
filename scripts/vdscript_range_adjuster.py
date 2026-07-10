@@ -1,13 +1,8 @@
 """
 User Guide for vdscript_range_adjuster.py
 Purpose
-This script is designed to adjust cut points in VirtualDub & VirtualDub2 script files (.vdscript) to ensure they align with legal frame boundaries, particularly useful when working with proxy videos for editing high-resolution footage. It guarantees that no frames are lost in the process, unlike most "stream copy" video editors. No need for aligning cut points with keyframes etc, because this script does all that for you automatically! After generating the adjusted .vdscript file, you can convert it to a Cuttermaran project file, an MKVToolNix GUI cutlist, or an *ExactCut FFmpeg Cutter cutlist via *vdscript_to_timecode_cutlist_generator.py (*included). More info at the bottom of this guide.
+This script is designed to adjust cut points in VirtualDub & VirtualDub2 script files (.vdscript) to ensure they align with legal frame boundaries, particularly useful when working with proxy videos for editing high-resolution footage. It guarantees that no frames are lost in the process, unlike most "stream copy" video editors. No need for aligning cut points with keyframes etc, because this script does all that for you automatically! After generating the adjusted .vdscript file, you can convert it to a Cuttermaran project file, an MKVToolNix GUI cutlist, or a *VffEdit FFmpeg Cutter cutlist via *vdscript_to_timecode_cutlist_generator.py (*included). More info at the bottom of this guide.
 This script now works in batch mode!
-# Tested and works with:
-# - Python 3.13.7
-# - VirtualDub 1.10.4 .vdscript files
-# - VirtualDub2 (build 44282) .vdscript files
-# - "FFmpeg" generated frame log files (the version in LosslessCut 3.64.0)
 
 Features:
 
@@ -44,7 +39,7 @@ Adjust these parameters as needed:
     short_cut_mode: Set to True to enable moving endpoints to the next P or I-frame, False for "full GOP mode"
 
 Output
-The script generates new .vdscript files with the adjusted cut points. These files can then be used directly in VirtualDub or VirtualDub2 (depending on which version created the original vdscript files!), or converted to other formats like .cpf (Cuttermaran project files), "MKVToolNix GUI" cutlists or "ExactCut FFmpeg Cutter" cutlists.
+The script generates new .vdscript files with the adjusted cut points. These files can then be used directly in VirtualDub or VirtualDub2 (depending on which version created the original vdscript files!), or converted to other formats like .cpf (Cuttermaran project files), "MKVToolNix GUI" cutlists or "VffEdit FFmpeg Cutter" cutlists.
 Tips for Optimal Use
 
     When editing proxy videos, place cut points freely without worrying about exact frame types.
@@ -62,7 +57,7 @@ After generating the adjusted .vdscript file, you can convert it to other format
 
     For Cuttermaran: Use "vdscript_to_cpf".
     For MKVToolNix GUI: Use "vdscript_to_mkvtoolnix".
-    For ExactCut FFmpeg Cutter: Use `vdscript_to_timecode_cutlist_generator.py` (both included).
+    For VffEdit FFmpeg Cutter: Use `vdscript_to_timecode_cutlist_generator.py` (both included).
     All are available at https://github.com/CluelessCoder73?tab=repositories
 
 This script provides a powerful solution for ensuring accurate, lossless cuts in your video editing workflow, especially when working with proxy videos for high-resolution content. By automating the adjustment of cut points to legal frame boundaries, it saves time and guarantees the integrity of your final edit.
@@ -186,7 +181,7 @@ def batch_process_vdscripts(directory, i_frame_offset, merge_ranges_option, min_
 import argparse
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ExactCut Range Adjuster")
+    parser = argparse.ArgumentParser(description="VffEdit Range Adjuster")
     parser.add_argument("--dir", type=str, default=".", help="Directory to process")
     parser.add_argument("--offset", type=int, default=1, help="I-frame offset")
     parser.add_argument("--mingap", type=int, default=150, help="Minimum gap between ranges")

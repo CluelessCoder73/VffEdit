@@ -10,14 +10,10 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-# Tested and works with:
-# - Python 3.13.7
-# - FFmpeg (the version in LosslessCut 3.69.0)
-
 # --- Settings ---
 CUTLIST_SUFFIX = ".cutlist.txt"
 LOG_FILENAME_TEMPLATE = "ffmpeg_log-{timestamp}.log"
-CONFIG_FILE = "exactcut_config.json"
+CONFIG_FILE = "ffmpeg_cutter_config.json"
 
 # --- Cleanup Tool Constants ---
 CORRESPONDING_EXTENSIONS = [
@@ -33,7 +29,7 @@ EXTRA_FILES = [
 ]
 
 SCRIPTS_LIST = [
-    'exactcut_vfr_detector.pyw',
+    'vfr_detector.pyw',
     '1_Log_and_Verify.bat',
     'gop_analyzer.py',
     '2_Analyze_and_Prepare.bat',
@@ -187,7 +183,7 @@ def save_config(config):
 class FFmpegCutterApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("ExactCut FFmpeg Cutter (MS Precision Edition)")
+        self.root.title("FFmpeg Cutter (MS Precision Edition)")
 
         self.start_offset_var = tk.IntVar(value=267)
         self.end_offset_var = tk.IntVar(value=1000)
@@ -459,7 +455,7 @@ class FFmpegCutterApp:
         CleanupToolWindow(self.root, self.selected_dir_var.get())
 
     def show_help(self):
-        msg = """ExactCut FFmpeg Cutter (MS Precision Edition)
+        msg = """FFmpeg Cutter (MS Precision Edition)
 -------------------------------------------------------------
 HOW TO USE:
 1. Ensure your folder contains video files and corresponding .cutlist.txt files.
@@ -521,7 +517,7 @@ Other default values can still be changed by editing this file. Look for:
     self.container_mode_var = tk.StringVar(value="Same as source")
 """
         help_win = tk.Toplevel(self.root)
-        help_win.title("ExactCut Help")
+        help_win.title("FFmpeg Cutter Help")
         help_win.geometry("520x600")
         help_win.transient(self.root) 
         
@@ -562,7 +558,7 @@ class LineNumberCanvas(tk.Canvas):
 class CutlistEditorWindow:
     def __init__(self, master, default_dir):
         self.window = tk.Toplevel(master)
-        self.window.title("ExactCut - Cutlist Editor")
+        self.window.title("FFmpeg Cutter - Cutlist Editor")
         self.window.geometry("750x550")
         self.window.transient(master)
 
@@ -733,7 +729,7 @@ class CutlistEditorWindow:
 class CleanupToolWindow:
     def __init__(self, master, default_dir):
         self.window = tk.Toplevel(master)
-        self.window.title("ExactCut Cleanup Tool")
+        self.window.title("Cleanup Tool")
         self.window.geometry("500x320")
         self.window.transient(master)
 
@@ -782,7 +778,7 @@ class CleanupToolWindow:
         
         if self.remove_originals.get():
             origs = collect_originals(folder, video_files)
-            if origs and messagebox.askyesno("Warning", "Move originals? Recreating them takes DAYS.", parent=self.window):
+            if origs and messagebox.askyesno("Warning", "Move originals? Recreating them can take a long time!", parent=self.window):
                 files_to_move += origs
 
         if files_to_move: move_files(folder, files_to_move)
@@ -791,23 +787,23 @@ class CleanupToolWindow:
 
     def show_help(self):
         help_text = (
-            "ExactCut Cleanup Tool — Help\n\n"
-            "This tool helps you declutter folders containing video projects created using the ExactCut-Video-Tools workflow.\n\n"
+            "Cleanup Tool — Help\n\n"
+            "This tool helps you declutter folders containing video projects created using the VffEdit workflow.\n\n"
             "Default behaviour (no boxes checked):\n"
             "- Moves temporary/output files that sit next to your video files into a 'delete' subfolder.\n"
             "- These include files like .cutlist.txt, *_adjusted.vdscript, *_adjusted_info.txt, *_info.txt.\n"
             "- Also moves gop_info.txt, VFR_info.txt, and all .log files found in the folder.\n"
             "- Original video files (.mp4, .mkv, .mov, etc.) are NEVER moved.\n\n"
             "\"Remove scripts\" checkbox:\n"
-            "- If checked, moves the helper/automation scripts (ExactCut tools) into the 'delete' folder.\n"
-            "- Example: exactcut_vfr_detector.pyw, 1_Log_and_Verify.bat, vdscript_vfr_info.py, vdscript_range_adjuster.py, etc.\n\n"
+            "- If checked, moves the helper/automation scripts  into the 'delete' folder.\n"
+            "- Example: vfr_detector.pyw, 1_Log_and_Verify.bat, vdscript_vfr_info.py, vdscript_range_adjuster.py, etc.\n\n"
             "\"Remove output segments\" checkbox:\n"
             "- If checked, looks for folders named after each video (e.g. 'whatever' for 'whatever.mp4').\n"
-            "- These folders are assumed to contain the ExactCut output segments.\n"
+            "- These folders are assumed to contain the FFmpeg Cutter output segments.\n"
             "- A warning is shown first: only proceed if you have already merged the segments you need.\n\n"
             "\"Remove original vdscripts & frame logs - CAUTION\" checkbox:\n"
             "- If checked, moves original .vdscript files and *_frame_log.txt files into 'delete'.\n"
-            "- WARNING: These original VirtualDub2 cutlists and frame logs can take a VERY long time to recreate (sometimes DAYS).\n"
+            "- WARNING: These original VirtualDub2 cutlists and frame logs can take a VERY long time to recreate.\n"
             "- Use this option only when you are absolutely sure you no longer need the originals.\n"
             "- The tool always shows a confirmation warning before moving them.\n\n"
             "Usage:\n"
