@@ -12,7 +12,7 @@ from pathlib import Path
 class VffEditApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("VffEdit (ExactCut Orchestrator)")
+        self.root.title("VffEdit")
         self.root.geometry("1100x750")
         
         self.target_folder = tk.StringVar(value="No folder selected")
@@ -275,7 +275,7 @@ class VffEditApp:
     def run_vfr_detector(self):
         folder = self.target_folder.get()
         if not os.path.isdir(folder): return
-        script_path = self.scripts_dir / "exactcut_vfr_detector.pyw"
+        script_path = self.scripts_dir / "vfr_detector.pyw"
         subprocess.Popen([sys.executable, str(script_path)], cwd=folder)
         self.log("\nLaunched VFR Detector.")
 
@@ -339,13 +339,13 @@ class VffEditApp:
         threading.Thread(target=sequential_worker, daemon=True).start()
 
     def run_step_4(self):
-        script_path = self.scripts_dir / "exactcut_ffmpeg_cutter.pyw"
+        script_path = self.scripts_dir / "ffmpeg_cutter.pyw"
         if not script_path.exists():
             self.log("Error: Cutter script not found.")
             return
             
         subprocess.Popen([sys.executable, str(script_path)])
-        self.log("\nLaunched ExactCut FFmpeg Cutter.")
+        self.log("\nLaunched FFmpeg Cutter.")
 
 if __name__ == "__main__":
     root = tk.Tk()
