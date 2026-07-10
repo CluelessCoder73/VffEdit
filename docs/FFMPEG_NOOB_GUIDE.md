@@ -1,6 +1,6 @@
 # FFmpeg for Beginners: A Quick Start Guide
 
-Welcome to the powerful world of FFmpeg! While it might seem intimidating, FFmpeg is the engine that makes the ExactCut workflow possible. This guide will show you how to set it up using the tools you already have.
+Welcome to the powerful world of FFmpeg! While it might seem intimidating, FFmpeg is the engine that makes the VffEdit workflow possible. This guide will show you how to set it up using the tools you already have.
 
 ---
 
@@ -21,7 +21,7 @@ If you are using **LosslessCut**, you already have FFmpeg on your computer! You 
 
 ---
 
-## 2. Essential Commands for ExactCut
+## 2. Essential Commands for VffEdit
 
 ### A. The "Remux" (Fixing Video Containers)
 
@@ -50,7 +50,7 @@ ffmpeg -i "input.mp4" -c:v copy -c:a aac -b:a 192k "output.mp4"
 
 ## 3. Dealing with "Suspicious Timestamps"
 
-When you run `exactcut_vfr_detector.pyw`, you might see a warning about **"SUSPICIOUS TIMESTAMPS."**
+When you run `vfr_detector.pyw`, you might see a warning about **"SUSPICIOUS TIMESTAMPS."**
 
 ### Step 1: Adjust the Tolerance
 
