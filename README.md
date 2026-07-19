@@ -2,6 +2,8 @@
 
 Welcome to **VffEdit**, the centralized graphical orchestrator for your video editing and frame-accurate cutting pipeline. 
 
+![image alt](https://github.com/CluelessCoder73/VffEdit/blob/918cb1fa06dc277905f9ffba3a49df71038584d2/vffedit.png)
+
 VffEdit replaces scattered batch files and manual directory management with a single, unified interface (`vffedit.pyw`) that manages project states, executes background Python scripts, and pipes real-time outputs straight to an integrated console log.
 
 ---
