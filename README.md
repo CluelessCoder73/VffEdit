@@ -1,6 +1,8 @@
 # VffEdit (Formerly ExactCut Video Tools)
 
 Welcome to **VffEdit**, the centralized graphical orchestrator for your video editing and frame-accurate cutting pipeline. 
+YouTube tutorial:
+https://youtu.be/z5bvJU8yRqI
 
 ![image alt](https://github.com/CluelessCoder73/VffEdit/blob/918cb1fa06dc277905f9ffba3a49df71038584d2/vffedit.png)
 
