@@ -62,8 +62,7 @@ class VffEditApp:
         
         btn_opts = {"fill": tk.X, "pady": 5, "ipady": 5}
         
-        ttk.Button(workflow_group, text="Step 1: Extract Frame Logs", command=self.run_step_1).pack(**btn_opts)
-        ttk.Button(workflow_group, text="Step 2: Check VFR Health", command=self.run_vfr_detector).pack(**btn_opts)
+        ttk.Button(workflow_group, text="Step 1: Extract Logs & Check VFR", command=self.run_step_1).pack(**btn_opts)
         
         ttk.Separator(workflow_group, orient='horizontal').pack(fill=tk.X, pady=10)
         
@@ -71,8 +70,8 @@ class VffEditApp:
         
         ttk.Separator(workflow_group, orient='horizontal').pack(fill=tk.X, pady=10)
         
-        ttk.Button(workflow_group, text="Step 3: Analyze & Adjust Cutlists", command=self.run_step_3).pack(**btn_opts)
-        ttk.Button(workflow_group, text="Step 4: Launch FFmpeg Cutter", command=self.run_step_4).pack(**btn_opts)
+        ttk.Button(workflow_group, text="Step 2: Analyze & Adjust Cutlists", command=self.run_step_3).pack(**btn_opts)
+        ttk.Button(workflow_group, text="Step 3: Launch FFmpeg Cutter", command=self.run_step_4).pack(**btn_opts)
 
         # --- RIGHT PANEL: Notebook Tabs ---
         self.notebook = ttk.Notebook(paned)
@@ -182,7 +181,6 @@ class VffEditApp:
         if not folder or not orig_file: return
         
         orig_path = Path(folder) / orig_file
-        # Construct adjusted filename (e.g., vacation.mp4_info.txt -> vacation.mp4_adjusted_info.txt)
         adj_name = orig_file.replace("_info.txt", "_adjusted_info.txt")
         adj_path = Path(folder) / adj_name
         
@@ -195,13 +193,12 @@ class VffEditApp:
         self.comp_adj_text.delete(1.0, tk.END)
         
         if not adj_path.exists():
-            self.comp_adj_text.insert(tk.END, "[Adjusted file not generated yet. Run Step 3.]")
+            self.comp_adj_text.insert(tk.END, "[Adjusted file not generated yet. Run Step 2.]")
             return
             
         with open(adj_path, 'r', encoding='utf-8') as f:
             adj_content = f.read()
             
-        # The Alignment Algorithm
         range_pattern = re.compile(r"\(Frames (\d+)\s*-\s*(\d+)\)")
         orig_ranges = []
         for line in orig_content.splitlines():
@@ -219,7 +216,6 @@ class VffEditApp:
                 covered = 0
                 while orig_idx < len(orig_ranges):
                     o_start, o_end = orig_ranges[orig_idx]
-                    # Check if original cut falls within the adjusted boundary
                     if adj_start <= o_start <= adj_end:
                         covered += 1
                         orig_idx += 1
@@ -227,7 +223,6 @@ class VffEditApp:
                         break
                         
                 adj_display.append(line)
-                # Pad blank lines for swallowed ranges
                 if covered > 1:
                     for _ in range(covered - 1):
                         adj_display.append("")
@@ -268,7 +263,10 @@ class VffEditApp:
                     self.log(f"Error processing {vid.name}: {e}")
             
             self.log("--- Frame Log Extraction Complete ---")
+            
+            # Update UI and automatically launch VFR Detector
             self.root.after(0, self.update_status)
+            self.root.after(500, self.run_vfr_detector)
 
         threading.Thread(target=extract_logs, daemon=True).start()
 
@@ -276,8 +274,10 @@ class VffEditApp:
         folder = self.target_folder.get()
         if not os.path.isdir(folder): return
         script_path = self.scripts_dir / "vfr_detector.pyw"
-        subprocess.Popen([sys.executable, str(script_path)], cwd=folder)
-        self.log("\nLaunched VFR Detector.")
+        
+        # We pass the folder directly to the script via command line arguments
+        subprocess.Popen([sys.executable, str(script_path), folder], cwd=folder)
+        self.log("\nAuto-launched VFR Detector.")
 
     def check_gop_warning(self):
         folder = Path(self.target_folder.get())
@@ -304,9 +304,8 @@ class VffEditApp:
         if not os.path.isdir(folder): return
         
         def sequential_worker():
-            self.log("\n=== Starting Step 3: Analysis Pipeline ===")
+            self.log("\n=== Starting Step 2: Analysis Pipeline ===")
             
-            # Setup Adjuster Command with conditional Full GOP flag
             adj_cmd = [sys.executable, str(self.scripts_dir / "vdscript_range_adjuster.py"), "--dir", folder, "--offset", str(self.i_frame_offset_var.get()), "--mingap", str(self.min_gap_var.get())]
             if self.full_gop_var.get():
                 adj_cmd.append("--fullgop")
@@ -330,9 +329,8 @@ class VffEditApp:
                 except Exception as e:
                     self.log(f"Error running {name}: {e}")
             
-            self.log("=== Step 3 Complete ===")
+            self.log("=== Step 2 Complete ===")
             
-            # Schedule UI updates back on the main thread safely
             self.root.after(0, self.update_status)
             self.root.after(500, self.check_gop_warning)
 
