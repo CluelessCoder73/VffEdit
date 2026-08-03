@@ -6,11 +6,10 @@ using forgiving parameters to reduce false positives.
 """
 import os
 import re
-import tkinter as tk
-from tkinter import filedialog, scrolledtext, messagebox
-import threading
 import sys
-import argparse
+import threading
+import tkinter as tk
+from tkinter import scrolledtext, messagebox
 
 def vfr_detector_forgiving(
     log_file_path,
@@ -86,38 +85,14 @@ def generate_summary_text(vfr_detected, suspicious_detected):
     
     return "".join(lines)
 
-def run_detection_and_save_to_file(folder_path, output_filename="VFR_info.txt",
-                                   ignore_initial_frames=50, ignore_zero_duration=True,
-                                   duration_tolerance=0.001):
-    """Batch mode implementation for the .bat workflow."""
-    log_files = [f for f in os.listdir(folder_path) if f.endswith('_frame_log.txt')]
-    output_lines = ["--- VFR Detector Report ---\n\n"]
-    vfr_detected = False
-    suspicious_detected = False
-
-    if not log_files:
-        output_lines.append("No *_frame_log.txt files found.\n")
-    else:
-        for log_file in log_files:
-            status, durations = vfr_detector_forgiving(os.path.join(folder_path, log_file), 
-                                                        ignore_initial_frames, ignore_zero_duration, duration_tolerance)
-            output_lines.append(f"File: {log_file}\n")
-            output_lines.append(f"  Result: {status} ({len(durations)} duration groups)\n")
-            output_lines.append("-" * 30 + "\n")
-            if status == "VFR_SUSPICIOUS": suspicious_detected = True
-            elif status == "VFR_HEALTHY": vfr_detected = True
-
-    output_lines.append(generate_summary_text(vfr_detected, suspicious_detected))
-    
-    with open(os.path.join(folder_path, output_filename), 'w', encoding='utf-8') as f:
-        f.write("".join(output_lines))
-
 class VFRDetectorApp:
-    def __init__(self, master):
+    def __init__(self, master, target_folder):
         self.master = master
         master.title("VFR Detector")
         master.geometry("800x750")
         master.configure(bg="#2c3e50")
+
+        self.current_folder = target_folder
 
         # --- Parameters ---
         self.params_frame = tk.LabelFrame(master, text="Detection Parameters", padx=15, pady=15, bg="#34495e", fg="white")
@@ -132,30 +107,28 @@ class VFRDetectorApp:
         tk.Entry(self.params_frame, textvariable=self.duration_tolerance_var, width=12).grid(row=1, column=1, sticky="w", padx=10)
 
         # --- Actions ---
-        self.folder_path_var = tk.StringVar(value="No folder selected")
+        folder_display = self.current_folder if self.current_folder else "No folder provided (Run via VffEdit Master Orchestrator)"
+        self.folder_path_var = tk.StringVar(value=folder_display)
         tk.Label(master, textvariable=self.folder_path_var, bg="#ecf0f1", pady=8, relief="sunken").pack(fill="x", padx=20)
         
         btn_frame = tk.Frame(master, bg="#2c3e50")
         btn_frame.pack(pady=10)
-        tk.Button(btn_frame, text="1. Browse Folder", command=self.browse_folder, bg="#27ae60", fg="white", padx=15, pady=5).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="2. Run Detection", command=self.start_thread, bg="#3498db", fg="white", padx=15, pady=5).pack(side="left", padx=5)
+        
+        tk.Button(btn_frame, text="Rerun Detection", command=self.start_thread, bg="#3498db", fg="white", padx=15, pady=5).pack(side="left", padx=5)
 
         self.output_text = scrolledtext.ScrolledText(master, bg="#ecf0f1", fg="#2c3e50", font=("Consolas", 10), padx=10, pady=10)
         self.output_text.pack(pady=15, padx=20, fill="both", expand=True)
 
-        self.current_folder = ""
-
-    def browse_folder(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.current_folder = folder
-            self.folder_path_var.set(folder)
+        # Automatically start the scan if a valid folder was passed by VffEdit
+        if self.current_folder and os.path.isdir(self.current_folder):
+            self.master.after(500, self.start_thread)
 
     def start_thread(self):
-        if not self.current_folder: 
-            messagebox.showwarning("Warning", "Please select a folder first!")
+        if not self.current_folder or not os.path.isdir(self.current_folder): 
+            messagebox.showwarning("Warning", "No valid project folder detected. Please run this through VffEdit!")
             return
         self.output_text.delete(1.0, tk.END)
+        self.output_text.insert(tk.END, "Scanning logs... Please wait.\n\n")
         threading.Thread(target=self.run_logic, daemon=True).start()
 
     def run_logic(self):
@@ -176,18 +149,15 @@ class VFRDetectorApp:
                 elif status == "VFR_HEALTHY": vfr_detected = True
 
         final_gui_text = "".join(results) + generate_summary_text(vfr_detected, suspicious_detected)
+        
+        # Clear the "Scanning..." message and output results
+        self.master.after(0, lambda: self.output_text.delete(1.0, tk.END))
         self.master.after(0, lambda: self.output_text.insert(tk.END, final_gui_text))
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--batch-mode', action='store_true')
-    parser.add_argument('--path', type=str)
-    parser.add_argument('--duration-tolerance', type=float, default=0.001)
-    args = parser.parse_args()
-
-    if args.batch_mode and args.path:
-        run_detection_and_save_to_file(args.path, duration_tolerance=args.duration_tolerance)
-    else:
-        root = tk.Tk()
-        VFRDetectorApp(root)
-        root.mainloop()
+    # Ingest the folder path passed from vffedit.pyw
+    target = sys.argv[1] if len(sys.argv) > 1 else ""
+    
+    root = tk.Tk()
+    VFRDetectorApp(root, target)
+    root.mainloop()
