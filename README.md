@@ -37,8 +37,7 @@ VffEdit/
 ### 1. Project Initialization & Verification
 
 * **Select Project Folder:** Point VffEdit to the folder containing your raw source videos.
-* **Step 1: Extract Frame Logs:** Automatically runs background FFmpeg tasks to generate essential `_frame_log.txt` files for every video detected.
-* **Step 2: Check VFR Health:** Launches the VFR Detector utility to analyze variable frame rate edge-cases.
+* **Step 1: Extract Logs & Check VFR:** Automatically runs background FFmpeg tasks to generate essential `_frame_log.txt` files for every video detected, then launches the VFR Detector utility to analyze variable frame rate edge-cases.
 
 ### 2. The VirtualDub2 Editing Phase
 
@@ -52,7 +51,7 @@ Click the **VirtualDub2 Info** button in the GUI for a quick reminder of the edi
 ### 3. Analysis & Adjustment
 
 * **Adjust Parameters:** Fine-tune your **I-Frame Offset** and **Minimum Gap (frames)** dynamically from the GUI settings panel.
-* **Step 3: Analyze & Adjust Cutlists:** Fires off the sequential script pipeline:
+* **Step 2: Analyze & Adjust Cutlists:** Fires off the sequential script pipeline:
 * Adjusts the original `.vdscript` cuts based on your offset/gap math.
 * Runs the GOP Analyzer to map keyframes (`gop_info.txt`).
 * Generates VFR-aware informational logs.
@@ -62,7 +61,7 @@ Click the **VirtualDub2 Info** button in the GUI for a quick reminder of the edi
 
 ### 4. Lossless Cutting
 
-* **Step 4: Launch FFmpeg Cutter:** Opens the standalone `ffmpeg_cutter.pyw` GUI utility to losslessly slice your videos using your newly tailored cutlists.
+* **Step 3: Launch FFmpeg Cutter:** Opens the standalone `ffmpeg_cutter.pyw` GUI utility to losslessly slice your videos using your newly tailored cutlists.
 
 ### 5. Merge
 
