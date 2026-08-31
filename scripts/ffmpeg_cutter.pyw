@@ -1,9 +1,9 @@
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
-import json
 import shutil
 from pathlib import Path
 from datetime import datetime
@@ -13,7 +13,6 @@ from tkinter import ttk, filedialog, messagebox
 # --- Settings ---
 CUTLIST_SUFFIX = ".cutlist.txt"
 LOG_FILENAME_TEMPLATE = "ffmpeg_log-{timestamp}.log"
-CONFIG_FILE = "ffmpeg_cutter_config.json"
 
 # --- Cleanup Tool Constants ---
 CORRESPONDING_EXTENSIONS = [
@@ -26,16 +25,6 @@ CORRESPONDING_EXTENSIONS = [
 EXTRA_FILES = [
     'gop_info.txt',
     'VFR_info.txt'
-]
-
-SCRIPTS_LIST = [
-    'vfr_detector.pyw',
-    '1_Log_and_Verify.bat',
-    'gop_analyzer.py',
-    '2_Analyze_and_Prepare.bat',
-    'vdscript_vfr_info.py',  
-    'vdscript_range_adjuster.py',
-    'vdscript_to_timecode_cutlist_generator.py'
 ]
 
 ORIGINALS_EXT = [
@@ -109,13 +98,25 @@ def collect_corresponding_files(folder, video_files):
                 files.append(f)
     return files
 
-def collect_scripts(folder):
-    files = []
-    for name in SCRIPTS_LIST:
-        f = os.path.join(folder, name)
-        if os.path.exists(f):
-            files.append(f)
-    return files
+def is_system32_path(folder_path):
+    if not folder_path or not str(folder_path).strip():
+        return False
+    try:
+        p = Path(folder_path).resolve()
+        windir_env = os.environ.get('WINDIR', os.environ.get('SystemRoot', r'C:\Windows'))
+        windir = Path(windir_env).resolve()
+        sys32 = (windir / 'System32').resolve()
+        syswow64 = (windir / 'SysWOW64').resolve()
+        if p in (sys32, syswow64, windir):
+            return True
+        if windir in p.parents and (sys32 in p.parents or syswow64 in p.parents or p == windir):
+            return True
+        norm = str(p).lower().replace('/', '\\')
+        if "\\windows\\system32" in norm or "\\windows\\syswow64" in norm or norm in ("c:\\windows", "c:\\windows\\"):
+            return True
+    except Exception:
+        pass
+    return False
 
 def collect_originals(folder, video_files):
     files = []
@@ -163,25 +164,9 @@ class ToolTip:
         if tw:
             tw.destroy()
 
-# --- Configuration Management ---
-def load_config():
-    config_path = Path(__file__).parent / CONFIG_FILE
-    if config_path.exists():
-        try:
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-    return {}
-
-def save_config(config):
-    config_path = Path(__file__).parent / CONFIG_FILE
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=4)
-
 # --- Main Application Class ---
 class FFmpegCutterApp:
-    def __init__(self, root):
+    def __init__(self, root, target_folder=""):
         self.root = root
         self.root.title("FFmpeg Cutter (MS Precision Edition)")
 
@@ -195,30 +180,16 @@ class FFmpegCutterApp:
         self.time_remaining_var = tk.StringVar(value="")
         self.stop_event = threading.Event()
 
-        self.selected_dir_var = tk.StringVar()
-        self.load_last_directory()
+        if target_folder and Path(target_folder).is_dir() and not is_system32_path(target_folder):
+            folder_val = target_folder
+        elif not is_system32_path(str(Path.cwd())):
+            folder_val = str(Path.cwd())
+        else:
+            folder_val = ""
+        self.selected_dir_var = tk.StringVar(value=folder_val)
 
         self.build_ui()
         self.add_top_buttons()
-
-    def load_last_directory(self):
-        config = load_config()
-        last_dir = config.get("last_directory", str(Path(__file__).parent))
-        if Path(last_dir).is_dir():
-            self.selected_dir_var.set(last_dir)
-        else:
-            self.selected_dir_var.set(str(Path(__file__).parent))
-
-    def save_last_directory(self, path):
-        config = {"last_directory": path}
-        save_config(config)
-
-    def browse_directory(self):
-        initial_dir = self.selected_dir_var.get() if Path(self.selected_dir_var.get()).is_dir() else str(Path(__file__).parent)
-        chosen_dir = filedialog.askdirectory(initialdir=initial_dir, title="Select Folder Containing Video and Cutlist Files")
-        if chosen_dir:
-            self.selected_dir_var.set(chosen_dir)
-            self.save_last_directory(chosen_dir)
 
     def build_ui(self):
         padding = {"padx": 5, "pady": 5}
@@ -226,11 +197,10 @@ class FFmpegCutterApp:
         frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
         ttk.Label(frame, text="Source Folder:").grid(row=0, column=0, sticky=tk.W, **padding)
-        self.dir_entry = ttk.Entry(frame, textvariable=self.selected_dir_var, state="readonly", width=50)
+        self.dir_entry = ttk.Entry(frame, textvariable=self.selected_dir_var, state="readonly", width=40)
         self.dir_entry.grid(row=0, column=1, columnspan=2, sticky=(tk.W, tk.E), **padding)
-        
-        browse_button = ttk.Button(frame, text="Browse", command=self.browse_directory)
-        browse_button.grid(row=0, column=3, sticky=tk.W, **padding)
+        self.browse_btn = ttk.Button(frame, text="Browse", command=self.browse_source_folder)
+        self.browse_btn.grid(row=0, column=3, sticky=tk.W, **padding)
 
         ttk.Label(frame, text="Start Offset (ms):").grid(row=1, column=0, sticky=tk.W, **padding)
         self.start_entry = ttk.Entry(frame, textvariable=self.start_offset_var, width=6)
@@ -292,6 +262,14 @@ class FFmpegCutterApp:
 
     def cancel_processing(self):
         self.stop_event.set()
+
+    def browse_source_folder(self):
+        init_dir = self.selected_dir_var.get()
+        if is_system32_path(init_dir) or not os.path.isdir(init_dir):
+            init_dir = ""
+        folder = filedialog.askdirectory(initialdir=init_dir, title="Select Source Folder", parent=self.root)
+        if folder:
+            self.selected_dir_var.set(folder)
 
     def start_cutting(self):
         threading.Thread(target=self.process_cutlists).start()
@@ -507,8 +485,7 @@ Audio Modes:
   as WAV is most reliably supported in the MKV container.*
 
 Configuration:
-The last selected folder is automatically saved and loaded.
-Other default values can still be changed by editing this file. Look for:
+Default values can be changed by editing this file. Look for:
 
     self.start_offset_var = tk.IntVar(value=267)
     self.end_offset_var = tk.IntVar(value=1000)
@@ -641,8 +618,11 @@ class CutlistEditorWindow:
         ttk.Button(tools_frame, text="Apply Bridge", command=self.apply_bridge).pack(fill=tk.X, pady=(5, 15))
 
     def load_file(self):
+        init_dir = self.default_dir
+        if is_system32_path(init_dir) or not os.path.isdir(init_dir):
+            init_dir = ""
         file_path = filedialog.askopenfilename(
-            initialdir=self.default_dir,
+            initialdir=init_dir,
             title="Select Cutlist",
             filetypes=(("Cutlist Files", "*.cutlist.txt"), ("All Files", "*.*"))
         )
@@ -730,15 +710,17 @@ class CleanupToolWindow:
     def __init__(self, master, default_dir):
         self.window = tk.Toplevel(master)
         self.window.title("Cleanup Tool")
-        self.window.geometry("500x320")
+        self.window.geometry("520x330")
         self.window.transient(master)
 
-        self.folder = tk.StringVar(value=default_dir)
-        self.remove_scripts = tk.BooleanVar()
+        init_dir = "" if is_system32_path(default_dir) else default_dir
+        self.folder = tk.StringVar(value=init_dir)
         self.remove_output_segments = tk.BooleanVar()
         self.remove_originals = tk.BooleanVar()
 
         self.build_ui()
+        self.folder.trace_add("write", lambda *args: self.validate_folder())
+        self.validate_folder()
 
     def build_ui(self):
         padding = {"padx": 15, "pady": 5}
@@ -748,27 +730,54 @@ class CleanupToolWindow:
         ttk.Entry(frame, textvariable=self.folder, width=50).pack(side="left", expand=1, fill="x")
         ttk.Button(frame, text="Browse", command=self.browse_folder).pack(side="right", padx=(5,0))
 
+        self.status_label = ttk.Label(self.window, text="", font=("Segoe UI", 9, "bold"))
+        self.status_label.pack(anchor="w", padx=15, pady=(4, 0))
+
         chk_frame = ttk.Frame(self.window)
         chk_frame.pack(fill="both", expand=True, padx=15, pady=10)
-        ttk.Checkbutton(chk_frame, text="Remove scripts", variable=self.remove_scripts).pack(anchor="w", pady=2)
         ttk.Checkbutton(chk_frame, text="Remove output segments", variable=self.remove_output_segments).pack(anchor="w", pady=2)
-        tk.Checkbutton(chk_frame, text="Remove original vdscripts & frame logs - CAUTION", variable=self.remove_originals, fg="darkred").pack(anchor="w", pady=(10, 2))
+        tk.Checkbutton(chk_frame, text="Remove original vdscripts & frame logs - CAUTION", variable=self.remove_originals, fg="darkred").pack(anchor="w", pady=(8, 2))
 
         btn_frame = ttk.Frame(self.window)
         btn_frame.pack(fill="x", padx=15, pady=10)
-        ttk.Button(btn_frame, text="Run Cleanup", command=self.cleanup).pack(side="left")
+        self.run_button = ttk.Button(btn_frame, text="Run Cleanup", command=self.cleanup)
+        self.run_button.pack(side="left")
         ttk.Button(btn_frame, text="Help", command=self.show_help).pack(side="right")
 
+    def validate_folder(self):
+        folder = self.folder.get().strip()
+        if not folder:
+            self.status_label.config(text="⚠️ No folder selected.", foreground="#888888")
+            self.run_button.config(state="disabled")
+        elif is_system32_path(folder):
+            self.status_label.config(text="⚠️ Cleanup is disabled for system directory (System32).", foreground="red")
+            self.run_button.config(state="disabled")
+        elif not os.path.isdir(folder):
+            self.status_label.config(text="⚠️ Selected path is not a valid directory.", foreground="#d9534f")
+            self.run_button.config(state="disabled")
+        else:
+            self.status_label.config(text="")
+            self.run_button.config(state="normal")
+
     def browse_folder(self):
-        folder = filedialog.askdirectory(initialdir=self.folder.get())
-        if folder: self.folder.set(folder)
+        init_dir = self.folder.get().strip()
+        if is_system32_path(init_dir) or not os.path.isdir(init_dir):
+            init_dir = ""
+        folder = filedialog.askdirectory(initialdir=init_dir, title="Select Folder to Clean", parent=self.window)
+        if folder:
+            self.folder.set(folder)
 
     def cleanup(self):
-        folder = self.folder.get()
-        if not folder or not os.path.isdir(folder): return
+        folder = self.folder.get().strip()
+        if not folder or not os.path.isdir(folder):
+            messagebox.showerror("Error", "Please select a valid folder.", parent=self.window)
+            return
+        if is_system32_path(folder):
+            messagebox.showerror("Error", "Cleanup cannot be run on a system directory.", parent=self.window)
+            return
+
         video_files = get_video_files(folder)
         files_to_move = collect_corresponding_files(folder, video_files)
-        if self.remove_scripts.get(): files_to_move += collect_scripts(folder)
         
         folders_to_move = []
         if self.remove_output_segments.get():
@@ -781,8 +790,14 @@ class CleanupToolWindow:
             if origs and messagebox.askyesno("Warning", "Move originals? Recreating them can take a long time!", parent=self.window):
                 files_to_move += origs
 
-        if files_to_move: move_files(folder, files_to_move)
-        if folders_to_move: move_folders(folder, folders_to_move)
+        if not files_to_move and not folders_to_move:
+            messagebox.showinfo("Cleanup", "No cleanup files or folders found to move.", parent=self.window)
+            return
+
+        if files_to_move:
+            move_files(folder, files_to_move)
+        if folders_to_move:
+            move_folders(folder, folders_to_move)
         messagebox.showinfo("Cleanup", "Done.", parent=self.window)
 
     def show_help(self):
@@ -794,9 +809,6 @@ class CleanupToolWindow:
             "- These include files like .cutlist.txt, *_adjusted.vdscript, *_adjusted_info.txt, *_info.txt.\n"
             "- Also moves gop_info.txt, VFR_info.txt, and all .log files found in the folder.\n"
             "- Original video files (.mp4, .mkv, .mov, etc.) are NEVER moved.\n\n"
-            "\"Remove scripts\" checkbox:\n"
-            "- If checked, moves the helper/automation scripts  into the 'delete' folder.\n"
-            "- Example: vfr_detector.pyw, 1_Log_and_Verify.bat, vdscript_vfr_info.py, vdscript_range_adjuster.py, etc.\n\n"
             "\"Remove output segments\" checkbox:\n"
             "- If checked, looks for folders named after each video (e.g. 'whatever' for 'whatever.mp4').\n"
             "- These folders are assumed to contain the FFmpeg Cutter output segments.\n"
@@ -829,6 +841,7 @@ class CleanupToolWindow:
         text_area.pack(side="left", fill="both", expand=True)
 
 if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else ""
     root = tk.Tk()
-    app = FFmpegCutterApp(root)
+    app = FFmpegCutterApp(root, target)
     root.mainloop()
