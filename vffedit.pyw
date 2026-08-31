@@ -337,12 +337,16 @@ class VffEditApp:
         threading.Thread(target=sequential_worker, daemon=True).start()
 
     def run_step_4(self):
+        folder = self.target_folder.get()
+        if not os.path.isdir(folder):
+            messagebox.showerror("Error", "Select a folder first.")
+            return
         script_path = self.scripts_dir / "ffmpeg_cutter.pyw"
         if not script_path.exists():
             self.log("Error: Cutter script not found.")
             return
             
-        subprocess.Popen([sys.executable, str(script_path)])
+        subprocess.Popen([sys.executable, str(script_path), folder], cwd=folder)
         self.log("\nLaunched FFmpeg Cutter.")
 
 if __name__ == "__main__":
