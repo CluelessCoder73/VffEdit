@@ -28,6 +28,7 @@ from pathlib import Path
 # 00:00:58.266 - 00:01:06.358 (Frames 1397 - 1590)    Length: 00:00:08.091 (194 frames)
 # --------------------------------------------------------------------------------
 # Total Length: 00:00:26.609 (638 frames)
+# 2 Ranges
 # Timestamps calculated from FFmpeg frame log
 #
 # ----------------------------------------------------------------------
@@ -194,6 +195,8 @@ def process_vdscript(vdscript_path):
         f.write("-" * 80 + "\n")
         total_str = seconds_to_hms(total_duration_sec)
         f.write(f"Total Length: {total_str} ({total_frames_count} frames)\n")
+        range_word = "Range" if len(selections) == 1 else "Ranges"
+        f.write(f"{len(selections)} {range_word}\n")
         f.write("Timestamps calculated from FFmpeg frame log\n")
 
     print(f"  -> Generated: {output_file.name}")
