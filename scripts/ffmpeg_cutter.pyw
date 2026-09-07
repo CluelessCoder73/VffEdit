@@ -17,6 +17,7 @@ LOG_FILENAME_TEMPLATE = "ffmpeg_log-{timestamp}.log"
 # --- Cleanup Tool Constants ---
 CORRESPONDING_EXTENSIONS = [
     '.cutlist.txt',
+    '.cutlist.txt.bak',
     '_adjusted.vdscript',
     '_adjusted_info.txt',
     '_info.txt'
@@ -540,9 +541,11 @@ class CutlistEditorWindow:
         self.window.transient(master)
 
         self.current_file_path = None
+        self.last_saved_content = ""
         self.default_dir = default_dir
 
         self.build_ui()
+        self.window.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def build_ui(self):
         top_frame = ttk.Frame(self.window)
@@ -617,35 +620,96 @@ class CutlistEditorWindow:
 
         ttk.Button(tools_frame, text="Apply Bridge", command=self.apply_bridge).pack(fill=tk.X, pady=(5, 15))
 
+    def get_current_content(self):
+        content = self.text_area.get(1.0, tk.END)
+        if content.endswith("\n"):
+            content = content[:-1]
+        return content
+
+    def has_unsaved_changes(self):
+        current = self.get_current_content()
+        if not self.current_file_path:
+            return bool(current.strip())
+        return current != self.last_saved_content
+
+    def on_close(self):
+        if self.has_unsaved_changes():
+            file_name = Path(self.current_file_path).name if self.current_file_path else "Untitled"
+            res = messagebox.askyesnocancel("Warning", f'Save file "{file_name}" ?', parent=self.window)
+            if res is True:
+                if self.save_file(show_success=False):
+                    self.window.destroy()
+            elif res is False:
+                self.window.destroy()
+            else:
+                return
+        else:
+            self.window.destroy()
+
     def load_file(self):
+        if self.has_unsaved_changes():
+            file_name = Path(self.current_file_path).name if self.current_file_path else "Untitled"
+            res = messagebox.askyesnocancel("Warning", f'Save file "{file_name}" ?', parent=self.window)
+            if res is True:
+                if not self.save_file(show_success=False):
+                    return
+            elif res is None:
+                return
+
         init_dir = self.default_dir
         if is_system32_path(init_dir) or not os.path.isdir(init_dir):
             init_dir = ""
         file_path = filedialog.askopenfilename(
             initialdir=init_dir,
             title="Select Cutlist",
-            filetypes=(("Cutlist Files", "*.cutlist.txt"), ("All Files", "*.*"))
+            filetypes=(("Cutlist Files", "*.cutlist.txt"), ("All Files", "*.*")),
+            parent=self.window
         )
         if file_path:
             self.current_file_path = file_path
             self.file_label.config(text=Path(file_path).name, foreground="black")
-            with open(file_path, "r") as f:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
             self.text_area.delete(1.0, tk.END)
             self.text_area.insert(tk.END, content)
+            self.last_saved_content = self.get_current_content()
             self.window.after(50, self.line_numbers.redraw)
 
-    def save_file(self):
+    def save_file(self, show_success=True):
         if not self.current_file_path:
-            messagebox.showwarning("Warning", "No file loaded.", parent=self.window)
-            return
+            init_dir = self.default_dir
+            if is_system32_path(init_dir) or not os.path.isdir(init_dir):
+                init_dir = ""
+            file_path = filedialog.asksaveasfilename(
+                initialdir=init_dir,
+                title="Save Cutlist",
+                filetypes=(("Cutlist Files", "*.cutlist.txt"), ("All Files", "*.*")),
+                defaultextension=".cutlist.txt",
+                parent=self.window
+            )
+            if not file_path:
+                return False
+            self.current_file_path = file_path
+            self.file_label.config(text=Path(file_path).name, foreground="black")
+
         try:
-            content = self.text_area.get(1.0, tk.END)
-            if content.endswith("\n"): content = content[:-1]
-            with open(self.current_file_path, "w") as f: f.write(content)
-            messagebox.showinfo("Success", "File saved successfully.", parent=self.window)
+            content = self.get_current_content()
+            if os.path.exists(self.current_file_path):
+                backup_path = f"{self.current_file_path}.bak"
+                try:
+                    shutil.copy2(self.current_file_path, backup_path)
+                except Exception as b_err:
+                    print(f"Warning: Could not create backup: {b_err}")
+
+            with open(self.current_file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            self.last_saved_content = content
+            if show_success:
+                messagebox.showinfo("Success", "File saved successfully.", parent=self.window)
+            return True
         except Exception as e:
             messagebox.showerror("Error", f"Could not save file:\n{e}", parent=self.window)
+            return False
 
     def get_segments_data(self):
         lines = self.text_area.get(1.0, tk.END).splitlines()
