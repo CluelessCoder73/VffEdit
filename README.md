@@ -21,7 +21,6 @@ VffEdit/
 │
 └── scripts/                     # Core backend processing suite
     ├── vdscript_range_adjuster.py
-    ├── gop_analyzer.py
     ├── vdscript_vfr_info.py
     ├── vdscript_to_timecode_cutlist_generator.py
     ├── vdscript_to_cpf.py
@@ -50,10 +49,9 @@ Click the **VirtualDub2 Info** button in the GUI for a quick reminder of the edi
 
 ### 3. Analysis & Adjustment
 
-* **Adjust Parameters:** Fine-tune your **I-Frame Offset** and **Minimum Gap (frames)** dynamically from the GUI settings panel.
+* **Adjust Parameters:** Fine-tune your **I-Frame Offset** and **Min Gap (seconds)** dynamically from the GUI settings panel.
 * **Step 2: Analyze & Adjust Cutlists:** Fires off the sequential script pipeline:
 * Adjusts the original `.vdscript` cuts based on your offset/gap math.
-* Runs the GOP Analyzer to map keyframes (`gop_info.txt`).
 * Generates VFR-aware informational logs.
 * Outputs the finalized `.cutlist.txt` files.
 

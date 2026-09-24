@@ -17,7 +17,8 @@ class VffEditApp:
         
         self.target_folder = tk.StringVar(value="No folder selected")
         self.i_frame_offset_var = tk.IntVar(value=1)
-        self.min_gap_var = tk.IntVar(value=150)
+        self.min_gap_sec_var = tk.DoubleVar(value=5.0)
+        self.tiny_gop_var = tk.DoubleVar(value=0.2)
         self.enable_cpf_var = tk.BooleanVar(value=False)
         self.full_gop_var = tk.BooleanVar(value=False)
         
@@ -50,11 +51,14 @@ class VffEditApp:
         ttk.Label(settings_group, text="I-Frame Offset:").grid(row=0, column=0, sticky=tk.W, pady=2)
         ttk.Spinbox(settings_group, from_=0, to=5, textvariable=self.i_frame_offset_var, width=5).grid(row=0, column=1, sticky=tk.W)
         
-        ttk.Label(settings_group, text="Min Gap (frames):").grid(row=1, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(settings_group, textvariable=self.min_gap_var, width=8).grid(row=1, column=1, sticky=tk.W)
+        ttk.Label(settings_group, text="Min Gap (seconds):").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(settings_group, textvariable=self.min_gap_sec_var, width=8).grid(row=1, column=1, sticky=tk.W)
         
-        ttk.Checkbutton(settings_group, text="Full GOP Mode (Disable Short Cut)", variable=self.full_gop_var).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(5,0))
-        ttk.Checkbutton(settings_group, text="Enable CPF Export (Cuttermaran)", variable=self.enable_cpf_var).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
+        ttk.Label(settings_group, text="Tiny GOP Threshold:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(settings_group, textvariable=self.tiny_gop_var, width=8).grid(row=2, column=1, sticky=tk.W)
+        
+        ttk.Checkbutton(settings_group, text="Full GOP Mode (Disable Short Cut)", variable=self.full_gop_var).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(5,0))
+        ttk.Checkbutton(settings_group, text="Enable CPF Export (Cuttermaran)", variable=self.enable_cpf_var).grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=2)
 
         # Workflow Buttons
         workflow_group = ttk.LabelFrame(left_frame, text="Workflow Pipeline", padding=10)
@@ -264,7 +268,6 @@ class VffEditApp:
             
             self.log("--- Frame Log Extraction Complete ---")
             
-            # Update UI and automatically launch VFR Detector
             self.root.after(0, self.update_status)
             self.root.after(500, self.run_vfr_detector)
 
@@ -275,29 +278,8 @@ class VffEditApp:
         if not os.path.isdir(folder): return
         script_path = self.scripts_dir / "vfr_detector.pyw"
         
-        # We pass the folder directly to the script via command line arguments
         subprocess.Popen([sys.executable, str(script_path), folder], cwd=folder)
         self.log("\nAuto-launched VFR Detector.")
-
-    def check_gop_warning(self):
-        folder = Path(self.target_folder.get())
-        gop_file = folder / "gop_info.txt"
-        if not gop_file.exists(): return
-        
-        try:
-            with open(gop_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            match = re.search(r"Smallest starting GOP in all vdscripts:\s*(\d+)", content)
-            if match:
-                smallest_gop = int(match.group(1))
-                if smallest_gop <= 8:
-                    msg = (f"⚠️ GOP WARNING ⚠️\n\n"
-                           f"The Smallest starting GOP was detected as: {smallest_gop} frames.\n\n"
-                           f"Because this is 8 frames or less, your Seek Nudge might jump over a keyframe and lose footage.\n\n"
-                           f"Please check the Help section in `gop_analyzer.py` or use the 'Editor' tool (found in the FFmpeg Cutter) to bridge the gap or push the cut backward!")
-                    messagebox.showwarning("GOP Safety Warning", msg)
-        except Exception as e:
-            self.log(f"Failed to check GOP warning: {e}")
 
     def run_step_3(self):
         folder = self.target_folder.get()
@@ -306,13 +288,18 @@ class VffEditApp:
         def sequential_worker():
             self.log("\n=== Starting Step 2: Analysis Pipeline ===")
             
-            adj_cmd = [sys.executable, str(self.scripts_dir / "vdscript_range_adjuster.py"), "--dir", folder, "--offset", str(self.i_frame_offset_var.get()), "--mingap", str(self.min_gap_var.get())]
+            adj_cmd = [
+                sys.executable, str(self.scripts_dir / "vdscript_range_adjuster.py"), 
+                "--dir", folder, 
+                "--offset", str(self.i_frame_offset_var.get()), 
+                "--mingap", str(self.min_gap_sec_var.get()),
+                "--tinygop", str(self.tiny_gop_var.get())
+            ]
             if self.full_gop_var.get():
                 adj_cmd.append("--fullgop")
 
             cmds = [
                 (adj_cmd, "Range Adjuster"),
-                ([sys.executable, str(self.scripts_dir / "gop_analyzer.py")], "GOP Analyzer"),
                 ([sys.executable, str(self.scripts_dir / "vdscript_vfr_info.py")], "VFR Info Generator"),
                 ([sys.executable, str(self.scripts_dir / "vdscript_to_timecode_cutlist_generator.py")], "Cutlist Generator")
             ]
@@ -330,9 +317,7 @@ class VffEditApp:
                     self.log(f"Error running {name}: {e}")
             
             self.log("=== Step 2 Complete ===")
-            
             self.root.after(0, self.update_status)
-            self.root.after(500, self.check_gop_warning)
 
         threading.Thread(target=sequential_worker, daemon=True).start()
 

@@ -171,7 +171,7 @@ class FFmpegCutterApp:
         self.root = root
         self.root.title("FFmpeg Cutter (MS Precision Edition)")
 
-        self.start_offset_var = tk.IntVar(value=267)
+        self.start_offset_var = tk.IntVar(value=150)
         self.end_offset_var = tk.IntVar(value=1000)
         self.audio_mode_var = tk.StringVar(value="Copy")
         self.audio_bitrate_var = tk.StringVar(value="128")
@@ -206,7 +206,7 @@ class FFmpegCutterApp:
         ttk.Label(frame, text="Start Offset (ms):").grid(row=1, column=0, sticky=tk.W, **padding)
         self.start_entry = ttk.Entry(frame, textvariable=self.start_offset_var, width=6)
         self.start_entry.grid(row=1, column=1, sticky=tk.W, **padding)
-        ToolTip(self.start_entry, "Seek Nudge: Pushes the seek point forward (e.g., 267 ms).")
+        ToolTip(self.start_entry, "Seek Nudge: Pushes the seek point forward (e.g., 150 ms).")
 
         ttk.Label(frame, text="End Offset (ms):").grid(row=1, column=2, sticky=tk.W, **padding)
         self.end_entry = ttk.Entry(frame, textvariable=self.end_offset_var, width=6)
@@ -439,8 +439,7 @@ class FFmpegCutterApp:
 HOW TO USE:
 1. Ensure your folder contains video files and corresponding .cutlist.txt files.
 2. Select the folder above.
-3. Adjust your Millisecond Offsets.
-4. Choose Audio/Container settings and click 'Start Cutting'.
+3. Choose Audio/Container settings and click 'Start Cutting'.
 
 -------------------------------------------------------------
 UNDERSTANDING OFFSETS (MILLISECONDS):
@@ -458,26 +457,6 @@ END OFFSET (The "Safety Buffer"):
 - Recommended: 1000ms (1 second).
 
 -------------------------------------------------------------
-FRAME RATE MS CHEAT SHEET (For 8 Frames):
-To calculate a specific number of frames, use the CALCULATOR 
-button or the approximate values below:
-
-FRAME RATE (FPS)      1 FRAME DURATION      8 FRAMES (Approx)
--------------------------------------------------------------
-  23.976 fps   ---->    41.7 ms            334 ms
-  24.000 fps   ---->    41.7 ms            333 ms
-  25.000 fps   ---->    40.0 ms            320 ms
-  29.970 fps   ---->    33.4 ms            267 ms
-  30.000 fps   ---->    33.3 ms            267 ms
-  50.000 fps   ---->    20.0 ms            160 ms
-  59.940 fps   ---->    16.7 ms            133 ms
-  60.000 fps   ---->    16.7 ms            133 ms
-
-Example: 
-To add an 8-frame seek nudge for a 60fps video:
-8 * 16.7 = ~133 ms. Enter '133' in the Start Offset box.
-
--------------------------------------------------------------
 Audio Modes:
 - Copy: Losslessly copies the audio stream. No re-encoding. Bitrate not applicable.
 - AAC / MP3: Re-encodes audio to the selected lossy format at a specified bitrate.
@@ -488,7 +467,7 @@ Audio Modes:
 Configuration:
 Default values can be changed by editing this file. Look for:
 
-    self.start_offset_var = tk.IntVar(value=267)
+    self.start_offset_var = tk.IntVar(value=150)
     self.end_offset_var = tk.IntVar(value=1000)
     self.audio_mode_var = tk.StringVar(value="Copy")
     self.audio_bitrate_var = tk.StringVar(value="128")
