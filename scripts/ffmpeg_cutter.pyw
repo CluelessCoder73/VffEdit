@@ -17,16 +17,12 @@ LOG_FILENAME_TEMPLATE = "ffmpeg_log-{timestamp}.log"
 # --- Cleanup Tool Constants ---
 CORRESPONDING_EXTENSIONS = [
     '.cutlist.txt',
-    '.cutlist.txt.bak',
     '_adjusted.vdscript',
     '_adjusted_info.txt',
     '_info.txt'
 ]
 
-EXTRA_FILES = [
-    'gop_info.txt',
-    'VFR_info.txt'
-]
+EXTRA_FILES = []
 
 ORIGINALS_EXT = [
     '.vdscript',
@@ -363,72 +359,12 @@ class FFmpegCutterApp:
     def add_top_buttons(self):
         btn_frame = ttk.Frame(self.root)
         btn_frame.pack(anchor="ne", padx=10, pady=5)
-        
-        calc_button = ttk.Button(btn_frame, text="🧮 Calculator", command=self.open_calculator)
-        calc_button.pack(side="left", padx=(0,5))
-
-        editor_button = ttk.Button(btn_frame, text="✏️ Editor", command=self.open_editor)
-        editor_button.pack(side="left", padx=(0,5))
 
         cleanup_button = ttk.Button(btn_frame, text="🧹 Cleanup", command=self.open_cleanup)
         cleanup_button.pack(side="left", padx=(0,5))
 
         help_button = ttk.Button(btn_frame, text="? Help", command=self.show_help)
         help_button.pack(side="left")
-
-    def open_calculator(self):
-        calc_win = tk.Toplevel(self.root)
-        calc_win.title("Frame to MS Calculator")
-        calc_win.geometry("260x220")
-        calc_win.transient(self.root)
-        
-        x = self.root.winfo_x() + 50
-        y = self.root.winfo_y() + 50
-        calc_win.geometry(f"+{x}+{y}")
-
-        ttk.Label(calc_win, text="Video FPS:").pack(pady=(10,0))
-        fps_entry = ttk.Entry(calc_win, width=10, justify="center")
-        fps_entry.pack(pady=2)
-        fps_entry.insert(0, "23.976") 
-
-        ttk.Label(calc_win, text="Frames to Add:").pack(pady=(5,0))
-        frames_entry = ttk.Entry(calc_win, width=10, justify="center")
-        frames_entry.pack(pady=2)
-        frames_entry.insert(0, "8") 
-
-        result_var = tk.StringVar(value="---")
-        ttk.Label(calc_win, textvariable=result_var, font=("Segoe UI", 12, "bold"), foreground="#007acc").pack(pady=10)
-
-        def calculate():
-            try:
-                fps = float(fps_entry.get())
-                frames = float(frames_entry.get())
-                if fps <= 0: raise ValueError
-                ms = (1000.0 / fps) * frames
-                result_var.set(f"{int(round(ms))} ms")
-            except ValueError:
-                result_var.set("Error")
-
-        ttk.Button(calc_win, text="Calculate", command=calculate).pack(pady=5)
-        
-        btn_frame = ttk.Frame(calc_win)
-        btn_frame.pack(pady=5)
-
-        def apply_start():
-            val = result_var.get().replace(" ms", "")
-            if val.isdigit():
-                self.start_offset_var.set(int(val))
-
-        def apply_end():
-            val = result_var.get().replace(" ms", "")
-            if val.isdigit():
-                self.end_offset_var.set(int(val))
-
-        ttk.Button(btn_frame, text="Set Start", command=apply_start, width=8).pack(side="left", padx=2)
-        ttk.Button(btn_frame, text="Set End", command=apply_end, width=8).pack(side="left", padx=2)
-
-    def open_editor(self):
-        CutlistEditorWindow(self.root, self.selected_dir_var.get())
 
     def open_cleanup(self):
         CleanupToolWindow(self.root, self.selected_dir_var.get())
@@ -487,266 +423,6 @@ Default values can be changed by editing this file. Look for:
         
         scrollbar.pack(side="right", fill="y")
         text_area.pack(side="left", fill="both", expand=True)
-
-# --- NEW: Line Number Canvas Helper ---
-class LineNumberCanvas(tk.Canvas):
-    def __init__(self, *args, **kwargs):
-        tk.Canvas.__init__(self, *args, **kwargs)
-        self.textwidget = None
-
-    def attach(self, text_widget):
-        self.textwidget = text_widget
-
-    def redraw(self, *args):
-        self.delete("all")
-        if not self.textwidget:
-            return
-        i = self.textwidget.index("@0,0")
-        while True:
-            dline = self.textwidget.dlineinfo(i)
-            if dline is None: 
-                break
-            y = dline[1]
-            linenum = str(i).split(".")[0]
-            self.create_text(32, y, anchor="ne", text=linenum, font=("Consolas", 10), fill="#888888")
-            i = self.textwidget.index(f"{i}+1line")
-
-# --- Cutlist Editor Window Class ---
-class CutlistEditorWindow:
-    def __init__(self, master, default_dir):
-        self.window = tk.Toplevel(master)
-        self.window.title("FFmpeg Cutter - Cutlist Editor")
-        self.window.geometry("750x550")
-        self.window.transient(master)
-
-        self.current_file_path = None
-        self.last_saved_content = ""
-        self.default_dir = default_dir
-
-        self.build_ui()
-        self.window.protocol("WM_DELETE_WINDOW", self.on_close)
-
-    def build_ui(self):
-        top_frame = ttk.Frame(self.window)
-        top_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        ttk.Button(top_frame, text="Load Cutlist", command=self.load_file).pack(side=tk.LEFT, padx=5)
-        ttk.Button(top_frame, text="Save Changes", command=self.save_file).pack(side=tk.LEFT, padx=5)
-        
-        self.file_label = ttk.Label(top_frame, text="No file loaded.", foreground="gray")
-        self.file_label.pack(side=tk.LEFT, padx=15)
-
-        paned = ttk.PanedWindow(self.window, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-
-        text_frame = ttk.Frame(paned)
-        paned.add(text_frame, weight=3)
-        
-        self.line_numbers = LineNumberCanvas(text_frame, width=38, background="#f0f0f0", highlightthickness=0)
-        self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
-
-        self.text_area = tk.Text(text_frame, wrap="none", font=("Consolas", 10), undo=True)
-        self.text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        scrollbar_y = ttk.Scrollbar(text_frame, command=self.text_area.yview)
-        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.line_numbers.attach(self.text_area)
-
-        def _on_scroll(*args):
-            scrollbar_y.set(*args)
-            self.line_numbers.redraw()
-
-        self.text_area.configure(yscrollcommand=_on_scroll)
-        self.text_area.bind("<KeyRelease>", lambda e: self.line_numbers.redraw())
-        self.text_area.bind("<MouseWheel>", lambda e: self.window.after(10, self.line_numbers.redraw))
-        self.text_area.bind("<Configure>", lambda e: self.line_numbers.redraw())
-
-        tools_frame = ttk.LabelFrame(paned, text="Editor Tools", padding=10)
-        paned.add(tools_frame, weight=1)
-
-        lbl1 = ttk.Label(tools_frame, text="1. Expand Start Earlier", font=("Segoe UI", 9, "bold"))
-        lbl1.pack(anchor="w", pady=(0, 5))
-
-        f1 = ttk.Frame(tools_frame)
-        f1.pack(fill=tk.X, pady=2)
-        ttk.Label(f1, text="Line #:").pack(side=tk.LEFT)
-        self.seg_entry = ttk.Entry(f1, width=5)
-        self.seg_entry.pack(side=tk.RIGHT)
-
-        f2 = ttk.Frame(tools_frame)
-        f2.pack(fill=tk.X, pady=2)
-        ttk.Label(f2, text="Seconds (e.g. 1.0):").pack(side=tk.LEFT)
-        self.shift_entry = ttk.Entry(f2, width=5)
-        self.shift_entry.pack(side=tk.RIGHT)
-
-        ttk.Button(tools_frame, text="Apply Expansion", command=self.apply_shift).pack(fill=tk.X, pady=(5, 15))
-
-        lbl2 = ttk.Label(tools_frame, text="2. Bridge Gap", font=("Segoe UI", 9, "bold"))
-        lbl2.pack(anchor="w", pady=(0, 5))
-
-        f3 = ttk.Frame(tools_frame)
-        f3.pack(fill=tk.X, pady=2)
-        ttk.Label(f3, text="From Line #:").pack(side=tk.LEFT)
-        self.bridge_start_entry = ttk.Entry(f3, width=5)
-        self.bridge_start_entry.pack(side=tk.RIGHT)
-
-        f4 = ttk.Frame(tools_frame)
-        f4.pack(fill=tk.X, pady=2)
-        ttk.Label(f4, text="To Line #:").pack(side=tk.LEFT)
-        self.bridge_end_entry = ttk.Entry(f4, width=5)
-        self.bridge_end_entry.pack(side=tk.RIGHT)
-
-        ttk.Button(tools_frame, text="Apply Bridge", command=self.apply_bridge).pack(fill=tk.X, pady=(5, 15))
-
-    def get_current_content(self):
-        content = self.text_area.get(1.0, tk.END)
-        if content.endswith("\n"):
-            content = content[:-1]
-        return content
-
-    def has_unsaved_changes(self):
-        current = self.get_current_content()
-        if not self.current_file_path:
-            return bool(current.strip())
-        return current != self.last_saved_content
-
-    def on_close(self):
-        if self.has_unsaved_changes():
-            file_name = Path(self.current_file_path).name if self.current_file_path else "Untitled"
-            res = messagebox.askyesnocancel("Warning", f'Save file "{file_name}" ?', parent=self.window)
-            if res is True:
-                if self.save_file(show_success=False):
-                    self.window.destroy()
-            elif res is False:
-                self.window.destroy()
-            else:
-                return
-        else:
-            self.window.destroy()
-
-    def load_file(self):
-        if self.has_unsaved_changes():
-            file_name = Path(self.current_file_path).name if self.current_file_path else "Untitled"
-            res = messagebox.askyesnocancel("Warning", f'Save file "{file_name}" ?', parent=self.window)
-            if res is True:
-                if not self.save_file(show_success=False):
-                    return
-            elif res is None:
-                return
-
-        init_dir = self.default_dir
-        if is_system32_path(init_dir) or not os.path.isdir(init_dir):
-            init_dir = ""
-        file_path = filedialog.askopenfilename(
-            initialdir=init_dir,
-            title="Select Cutlist",
-            filetypes=(("Cutlist Files", "*.cutlist.txt"), ("All Files", "*.*")),
-            parent=self.window
-        )
-        if file_path:
-            self.current_file_path = file_path
-            self.file_label.config(text=Path(file_path).name, foreground="black")
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            self.text_area.delete(1.0, tk.END)
-            self.text_area.insert(tk.END, content)
-            self.last_saved_content = self.get_current_content()
-            self.window.after(50, self.line_numbers.redraw)
-
-    def save_file(self, show_success=True):
-        if not self.current_file_path:
-            init_dir = self.default_dir
-            if is_system32_path(init_dir) or not os.path.isdir(init_dir):
-                init_dir = ""
-            file_path = filedialog.asksaveasfilename(
-                initialdir=init_dir,
-                title="Save Cutlist",
-                filetypes=(("Cutlist Files", "*.cutlist.txt"), ("All Files", "*.*")),
-                defaultextension=".cutlist.txt",
-                parent=self.window
-            )
-            if not file_path:
-                return False
-            self.current_file_path = file_path
-            self.file_label.config(text=Path(file_path).name, foreground="black")
-
-        try:
-            content = self.get_current_content()
-            if os.path.exists(self.current_file_path):
-                backup_path = f"{self.current_file_path}.bak"
-                try:
-                    shutil.copy2(self.current_file_path, backup_path)
-                except Exception as b_err:
-                    print(f"Warning: Could not create backup: {b_err}")
-
-            with open(self.current_file_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            self.last_saved_content = content
-            if show_success:
-                messagebox.showinfo("Success", "File saved successfully.", parent=self.window)
-            return True
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not save file:\n{e}", parent=self.window)
-            return False
-
-    def get_segments_data(self):
-        lines = self.text_area.get(1.0, tk.END).splitlines()
-        pattern = re.compile(r'start_time=([\d.]+),duration=([\d.]+)')
-        segments = {}
-        for i, line in enumerate(lines):
-            match = pattern.search(line)
-            if match:
-                segments[i + 1] = {
-                    'line_idx': i,
-                    'start': float(match.group(1)),
-                    'duration': float(match.group(2))
-                }
-        return lines, segments
-
-    def update_text_area(self, lines):
-        self.text_area.delete(1.0, tk.END)
-        self.text_area.insert(tk.END, "\n".join(lines))
-        self.line_numbers.redraw()
-
-    def apply_shift(self):
-        try:
-            line_num = int(self.seg_entry.get())
-            shift_sec = float(self.shift_entry.get())
-        except ValueError:
-            messagebox.showerror("Error", "Please enter valid numbers.", parent=self.window)
-            return
-        lines, segments = self.get_segments_data()
-        if line_num not in segments:
-            messagebox.showerror("Error", f"No segment on line {line_num}.", parent=self.window)
-            return
-        target = segments[line_num]
-        new_start = max(0.0, target['start'] - shift_sec)
-        adj_shift = target['start'] - new_start
-        new_dur = target['duration'] + adj_shift
-        lines[target['line_idx']] = f"start_time={new_start:.6f},duration={new_dur:.6f}"
-        self.update_text_area(lines)
-        messagebox.showinfo("Success", f"Added {adj_shift:.3f}s to the start of the segment on line {line_num}.", parent=self.window)
-
-    def apply_bridge(self):
-        try:
-            start_num = int(self.bridge_start_entry.get())
-            end_num = int(self.bridge_end_entry.get())
-        except ValueError:
-            messagebox.showerror("Error", "Please enter valid line numbers.", parent=self.window)
-            return
-        lines, segments = self.get_segments_data()
-        if start_num >= end_num or start_num not in segments or end_num not in segments:
-            messagebox.showerror("Error", "Invalid line range.", parent=self.window)
-            return
-        start_seg, end_seg = segments[start_num], segments[end_num]
-        bridge_end_time = end_seg['start'] + end_seg['duration']
-        new_dur = bridge_end_time - start_seg['start']
-        lines[start_seg['line_idx']] = f"start_time={start_seg['start']:.6f},duration={new_dur:.6f}"
-        for i in range(start_seg['line_idx'] + 1, end_seg['line_idx'] + 1):
-            lines[i] = "" 
-        self.update_text_area(lines)
-        messagebox.showinfo("Success", f"Bridged from line {start_num} to {end_num}.", parent=self.window)
 
 # --- Cleanup Tool Window Class ---
 class CleanupToolWindow:
@@ -850,7 +526,7 @@ class CleanupToolWindow:
             "Default behaviour (no boxes checked):\n"
             "- Moves temporary/output files that sit next to your video files into a 'delete' subfolder.\n"
             "- These include files like .cutlist.txt, *_adjusted.vdscript, *_adjusted_info.txt, *_info.txt.\n"
-            "- Also moves gop_info.txt, VFR_info.txt, and all .log files found in the folder.\n"
+            "- Also moves all .log files found in the folder.\n"
             "- Original video files (.mp4, .mkv, .mov, etc.) are NEVER moved.\n\n"
             "\"Remove output segments\" checkbox:\n"
             "- If checked, looks for folders named after each video (e.g. 'whatever' for 'whatever.mp4').\n"
