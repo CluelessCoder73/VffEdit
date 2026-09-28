@@ -24,6 +24,10 @@ class VffEditApp:
         
         self.scripts_dir = Path(__file__).parent / "scripts"
         
+        self.orig_line_map = {}
+        self.adj_line_map = {}
+        self._scrolling_sync = False
+        
         self.build_ui()
 
     def build_ui(self):
@@ -57,7 +61,7 @@ class VffEditApp:
         ttk.Label(settings_group, text="Tiny GOP Threshold:").grid(row=2, column=0, sticky=tk.W, pady=2)
         ttk.Entry(settings_group, textvariable=self.tiny_gop_var, width=8).grid(row=2, column=1, sticky=tk.W)
         
-        ttk.Checkbutton(settings_group, text="Full GOP Mode (Disable Short Cut)", variable=self.full_gop_var).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(5,0))
+        ttk.Checkbutton(settings_group, text="Full GOP Mode", variable=self.full_gop_var).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(5,0))
         ttk.Checkbutton(settings_group, text="Enable CPF Export (Cuttermaran)", variable=self.enable_cpf_var).grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=2)
 
         # Workflow Buttons
@@ -114,13 +118,15 @@ class VffEditApp:
         
         orig_frame = ttk.LabelFrame(compare_split, text="Original Info")
         compare_split.add(orig_frame, weight=1)
-        self.comp_orig_text = scrolledtext.ScrolledText(orig_frame, font=("Consolas", 9), wrap="none")
+        self.comp_orig_text = scrolledtext.ScrolledText(orig_frame, font=("Consolas", 9), wrap="none", exportselection=False)
         self.comp_orig_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
         adj_frame = ttk.LabelFrame(compare_split, text="Adjusted Info (Aligned)")
         compare_split.add(adj_frame, weight=1)
-        self.comp_adj_text = scrolledtext.ScrolledText(adj_frame, font=("Consolas", 9), wrap="none")
+        self.comp_adj_text = scrolledtext.ScrolledText(adj_frame, font=("Consolas", 9), wrap="none", exportselection=False)
         self.comp_adj_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+
+        self.setup_comparison_events()
 
         self.log("VffEdit Initialized. Please select a project folder.")
 
@@ -165,6 +171,9 @@ class VffEditApp:
             self.compare_combo.set('')
             self.comp_orig_text.delete(1.0, tk.END)
             self.comp_adj_text.delete(1.0, tk.END)
+            self.clear_comparison_highlights()
+            self.orig_line_map.clear()
+            self.adj_line_map.clear()
 
     def show_vd2_info(self):
         msg = (
@@ -178,7 +187,139 @@ class VffEditApp:
         )
         messagebox.showinfo("VirtualDub2 Instructions", msg)
 
-    # --- Compare Alignment Logic ---
+    # --- Compare Alignment & Highlighting Logic ---
+    def setup_comparison_events(self):
+        # Configure tags for line highlighting
+        for widget in (self.comp_orig_text, self.comp_adj_text):
+            widget.tag_configure("highlight_active", background="#cce5ff")
+            widget.tag_configure("highlight_linked", background="#e8f0fe")
+            widget.tag_raise("sel")
+
+        for widget, role in ((self.comp_orig_text, "orig"), (self.comp_adj_text, "adj")):
+            widget.bind("<Button-1>", lambda e, r=role: self.on_comparison_click(e, r))
+            widget.bind("<B1-Motion>", lambda e, r=role: self.on_comparison_drag(e, r))
+            widget.bind("<KeyRelease>", lambda e, r=role: self.on_comparison_key(e, r))
+            widget.bind("<Key>", self.on_comparison_readonly_key)
+            widget.bind("<MouseWheel>", self.on_comparison_mousewheel)
+            widget.bind("<Button-4>", lambda e: self.on_comparison_scroll_btn(-1))
+            widget.bind("<Button-5>", lambda e: self.on_comparison_scroll_btn(1))
+            widget.bind("<Escape>", lambda e: self.clear_comparison_highlights())
+
+        # Sync vertical scrolling
+        self.comp_orig_text.config(yscrollcommand=self._make_sync_scroll(self.comp_orig_text, self.comp_adj_text))
+        self.comp_adj_text.config(yscrollcommand=self._make_sync_scroll(self.comp_adj_text, self.comp_orig_text))
+        self.comp_orig_text.vbar.config(command=self._sync_yview)
+        self.comp_adj_text.vbar.config(command=self._sync_yview)
+
+    def _make_sync_scroll(self, source, target):
+        def callback(*args):
+            source.vbar.set(*args)
+            if not self._scrolling_sync:
+                self._scrolling_sync = True
+                try:
+                    target.yview_moveto(args[0])
+                finally:
+                    self._scrolling_sync = False
+        return callback
+
+    def _sync_yview(self, *args):
+        self.comp_orig_text.yview(*args)
+        self.comp_adj_text.yview(*args)
+
+    def on_comparison_mousewheel(self, event):
+        if event.delta:
+            units = int(-1 * (event.delta / 120))
+            if units == 0:
+                units = -1 if event.delta > 0 else 1
+            self.comp_orig_text.yview_scroll(units, "units")
+            self.comp_adj_text.yview_scroll(units, "units")
+            return "break"
+
+    def on_comparison_scroll_btn(self, direction):
+        self.comp_orig_text.yview_scroll(direction, "units")
+        self.comp_adj_text.yview_scroll(direction, "units")
+        return "break"
+
+    def on_comparison_readonly_key(self, event):
+        # Allow copy (Ctrl+C), select all (Ctrl+A), navigation keys and modifier keys
+        if (event.state & 4) and event.keysym.lower() in ('c', 'a'):
+            return None
+        if event.keysym in ('Up', 'Down', 'Left', 'Right', 'Prior', 'Next', 'Home', 'End', 'Escape'):
+            return None
+        if event.keysym in ('Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R'):
+            return None
+        return "break"
+
+    def clear_comparison_highlights(self):
+        self.comp_orig_text.tag_remove("highlight_active", "1.0", tk.END)
+        self.comp_orig_text.tag_remove("highlight_linked", "1.0", tk.END)
+        self.comp_adj_text.tag_remove("highlight_active", "1.0", tk.END)
+        self.comp_adj_text.tag_remove("highlight_linked", "1.0", tk.END)
+
+    def highlight_comparison_line(self, line_num, source_role):
+        self.clear_comparison_highlights()
+
+        orig_total = int(self.comp_orig_text.index("end-1c").split('.')[0])
+        adj_total = int(self.comp_adj_text.index("end-1c").split('.')[0])
+
+        if line_num < 1:
+            return
+
+        src_total = orig_total if source_role == "orig" else adj_total
+        if line_num > src_total:
+            return
+
+        mapping = self.orig_line_map if source_role == "orig" else self.adj_line_map
+        if line_num in mapping:
+            info = mapping[line_num]
+            orig_lines = info["orig"]
+            adj_lines = info["adj"]
+            if source_role == "orig":
+                primary_orig = line_num
+                primary_adj = line_num if line_num in adj_lines else info.get("primary_adj", adj_lines[0] if adj_lines else line_num)
+            else:
+                primary_adj = line_num
+                primary_orig = line_num if line_num in orig_lines else info.get("primary_orig", orig_lines[0] if orig_lines else line_num)
+        else:
+            orig_lines = [line_num] if line_num <= orig_total else []
+            adj_lines = [line_num] if line_num <= adj_total else []
+            primary_orig = line_num
+            primary_adj = line_num
+
+        for ln in orig_lines:
+            if 1 <= ln <= orig_total:
+                tag = "highlight_active" if ln == primary_orig else "highlight_linked"
+                self.comp_orig_text.tag_add(tag, f"{ln}.0", f"{ln}.end+1c")
+
+        for ln in adj_lines:
+            if 1 <= ln <= adj_total:
+                tag = "highlight_active" if ln == primary_adj else "highlight_linked"
+                self.comp_adj_text.tag_add(tag, f"{ln}.0", f"{ln}.end+1c")
+
+        if primary_orig and 1 <= primary_orig <= orig_total:
+            self.comp_orig_text.see(f"{primary_orig}.0")
+        if primary_adj and 1 <= primary_adj <= adj_total:
+            self.comp_adj_text.see(f"{primary_adj}.0")
+
+    def on_comparison_click(self, event, role):
+        w = event.widget
+        w.focus_set()
+        idx = w.index(f"@{event.x},{event.y}")
+        line = int(idx.split('.')[0])
+        self.highlight_comparison_line(line, role)
+
+    def on_comparison_drag(self, event, role):
+        w = event.widget
+        idx = w.index(f"@{event.x},{event.y}")
+        line = int(idx.split('.')[0])
+        self.highlight_comparison_line(line, role)
+
+    def on_comparison_key(self, event, role):
+        if event.keysym in ("Up", "Down", "Prior", "Next", "Home", "End"):
+            w = event.widget
+            line = int(w.index(tk.INSERT).split('.')[0])
+            self.highlight_comparison_line(line, role)
+
     def on_compare_select(self, event):
         folder = self.target_folder.get()
         orig_file = self.compare_combo.get()
@@ -195,6 +336,9 @@ class VffEditApp:
         self.comp_orig_text.delete(1.0, tk.END)
         self.comp_orig_text.insert(tk.END, orig_content)
         self.comp_adj_text.delete(1.0, tk.END)
+        self.clear_comparison_highlights()
+        self.orig_line_map.clear()
+        self.adj_line_map.clear()
         
         if not adj_path.exists():
             self.comp_adj_text.insert(tk.END, "[Adjusted file not generated yet. Run Step 2.]")
@@ -204,34 +348,63 @@ class VffEditApp:
             adj_content = f.read()
             
         range_pattern = re.compile(r"\(Frames (\d+)\s*-\s*(\d+)\)")
-        orig_ranges = []
-        for line in orig_content.splitlines():
+        orig_line_ranges = []
+        for line_idx, line in enumerate(orig_content.splitlines(), start=1):
             match = range_pattern.search(line)
             if match:
-                orig_ranges.append((int(match.group(1)), int(match.group(2))))
+                orig_line_ranges.append((line_idx, int(match.group(1)), int(match.group(2))))
                 
         adj_display = []
         orig_idx = 0
+        curr_adj_line = 1
         
         for line in adj_content.splitlines():
             match = range_pattern.search(line)
             if match:
                 adj_start, adj_end = int(match.group(1)), int(match.group(2))
-                covered = 0
-                while orig_idx < len(orig_ranges):
-                    o_start, o_end = orig_ranges[orig_idx]
+                covered_orig_lines = []
+                while orig_idx < len(orig_line_ranges):
+                    o_line_num, o_start, o_end = orig_line_ranges[orig_idx]
                     if adj_start <= o_start <= adj_end:
-                        covered += 1
+                        covered_orig_lines.append(o_line_num)
                         orig_idx += 1
                     else:
                         break
                         
                 adj_display.append(line)
+                covered = len(covered_orig_lines)
+                adj_lines_in_group = [curr_adj_line]
                 if covered > 1:
                     for _ in range(covered - 1):
                         adj_display.append("")
+                        curr_adj_line += 1
+                        adj_lines_in_group.append(curr_adj_line)
+                curr_adj_line += 1
+
+                if not covered_orig_lines:
+                    covered_orig_lines = [adj_lines_in_group[0]]
+
+                mapping_data = {
+                    "orig": covered_orig_lines,
+                    "adj": adj_lines_in_group,
+                    "primary_orig": covered_orig_lines[0],
+                    "primary_adj": adj_lines_in_group[0]
+                }
+                for ol in covered_orig_lines:
+                    self.orig_line_map[ol] = mapping_data
+                for al in adj_lines_in_group:
+                    self.adj_line_map[al] = mapping_data
             else:
                 adj_display.append(line)
+                mapping_data = {
+                    "orig": [curr_adj_line],
+                    "adj": [curr_adj_line],
+                    "primary_orig": curr_adj_line,
+                    "primary_adj": curr_adj_line
+                }
+                self.orig_line_map[curr_adj_line] = mapping_data
+                self.adj_line_map[curr_adj_line] = mapping_data
+                curr_adj_line += 1
                 
         self.comp_adj_text.insert(tk.END, "\n".join(adj_display))
 
