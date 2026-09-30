@@ -28,7 +28,29 @@ class VffEditApp:
         self.adj_line_map = {}
         self._scrolling_sync = False
         
+        self.enable_cpf_var.trace_add("write", self._on_enable_cpf_change)
+        self.i_frame_offset_var.trace_add("write", self._on_i_frame_offset_change)
+
         self.build_ui()
+
+    def _on_enable_cpf_change(self, *args):
+        try:
+            if self.enable_cpf_var.get():
+                self.tiny_gop_var.set(0.0)
+            else:
+                self.tiny_gop_var.set(0.2)
+        except Exception:
+            pass
+
+    def _on_i_frame_offset_change(self, *args):
+        try:
+            offset = self.i_frame_offset_var.get()
+            if offset >= 2:
+                self.min_gap_sec_var.set(15.0)
+            elif offset == 1:
+                self.min_gap_sec_var.set(5.0)
+        except Exception:
+            pass
 
     def build_ui(self):
         # --- TOP PANEL: Folder Selection ---
@@ -161,7 +183,7 @@ class VffEditApp:
         self.status_text.config(state="disabled")
         
         # Update dropdown for comparison tab
-        info_files = [f.name for f in p.glob("*_info.txt") if not f.name.endswith("_adjusted_info.txt") and f.name != "gop_info.txt"]
+        info_files = [f.name for f in p.glob("*_info.txt") if not f.name.endswith("_adjusted_info.txt")]
         self.compare_combo['values'] = info_files
         if info_files:
             if not self.compare_combo.get() in info_files:
