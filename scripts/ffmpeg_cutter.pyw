@@ -205,7 +205,7 @@ def merge_group(subdir, stem, ext, part_files, output_dir, log_callback):
             cl.write(f"file '{safe_path}'\n")
 
     cmd = (
-        f"ffmpeg -y -f concat -safe 0 -i \"{concat_list_path}\" "
+        f"ffmpeg -f concat -safe 0 -i \"{concat_list_path}\" "
         f"-c copy \"{output_path}\""
     )
     log_callback(f"Merging: {stem}{ext} -> {out_name}\n  CMD: {cmd}\n")
@@ -446,8 +446,56 @@ class FFmpegCutterApp:
 
         self.time_remaining_var.set("Done.")
         if not self.stop_event.is_set():
-            messagebox.showinfo("Completed", f"Processed {processed_segments} segments.\nLog: {log_file_path.name}")
+            self.root.after(0, lambda: self._prompt_merge_after_cut(
+                processed_segments, log_file_path.name, str(source_dir)
+            ))
         self.stop_event.clear()
+
+    def _prompt_merge_after_cut(self, processed_segments, log_name, source_dir_str):
+        """Show a completion dialog that offers to open the Merge tool (Yes default)."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Completed")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        ttk.Label(
+            dialog,
+            text=f"Processed {processed_segments} segments.\nLog: {log_name}",
+            padding=(20, 15, 20, 5)
+        ).pack()
+        ttk.Separator(dialog, orient="horizontal").pack(fill="x", padx=10)
+        ttk.Label(
+            dialog,
+            text="Would you like to merge the segments?",
+            padding=(20, 10, 20, 5)
+        ).pack()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=(5, 15))
+
+        def on_yes():
+            dialog.destroy()
+            MergeToolWindow(self.root, source_dir_str)
+
+        def on_no():
+            dialog.destroy()
+
+        yes_btn = ttk.Button(btn_frame, text="Yes", command=on_yes, width=8)
+        yes_btn.pack(side="left", padx=(0, 8))
+        ttk.Button(btn_frame, text="No", command=on_no, width=8).pack(side="left")
+
+        # Centre the dialog over the root window
+        dialog.update_idletasks()
+        rw = self.root.winfo_rootx() + self.root.winfo_width() // 2
+        rh = self.root.winfo_rooty() + self.root.winfo_height() // 2
+        dw = dialog.winfo_width()
+        dh = dialog.winfo_height()
+        dialog.geometry(f"+{rw - dw // 2}+{rh - dh // 2}")
+
+        yes_btn.focus_set()  # Yes is focused / default
+        dialog.bind("<Return>", lambda e: on_yes())
+        dialog.bind("<Escape>", lambda e: on_no())
 
     def add_top_buttons(self):
         btn_frame = ttk.Frame(self.root)
@@ -674,6 +722,26 @@ class MergeToolWindow:
         if not groups:
             messagebox.showinfo("Info", "No segment groups found to merge.", parent=self.window)
             return
+
+        # Check for files that would be overwritten
+        existing = []
+        for subdir, stem, ext, parts in groups:
+            out_name = f"{sanitize_filename(stem)}_vffedited{ext}"
+            out_path = Path(out_dir) / out_name
+            if out_path.exists():
+                existing.append(out_name)
+
+        if existing:
+            file_list = "\n".join(f"  {n}" for n in existing)
+            answer = messagebox.askyesno(
+                "Overwrite?",
+                f"The following file(s) already exist in the output folder:\n\n"
+                f"{file_list}\n\n"
+                f"Do you want to overwrite them?",
+                parent=self.window
+            )
+            if not answer:
+                return
 
         self.merge_btn.config(state="disabled")
         self.status_var.set("Merging... please wait.")
