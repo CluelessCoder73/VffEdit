@@ -1,4 +1,4 @@
-# VffEdit (Formerly ExactCut Video Tools)
+# VffEdit
 
 Welcome to **VffEdit**, the centralized graphical orchestrator for your video editing and frame-accurate cutting pipeline. 
 YouTube tutorial:
@@ -63,16 +63,31 @@ Click the **VirtualDub2 Info** button in the GUI for a quick reminder of the edi
 
 ### 5. Merge
 
-Open LosslessCut, go to Tools > Merge/concatenate files, browse for desired folder, select all the parts, then merge. Repeat this process until all the parts in each subfolder have been merged - & that's it - FINITO!
-* **Cleanup:** Use the **🧹 Cleanup** button inside the FFmpeg Cutter to automatically sweep all the leftover files (cutlists, log files etc) into a `delete` folder to keep your workspace tidy.
+Once cutting is complete, use the built-in **Merge** button inside the FFmpeg Cutter:
+
+1. Click the **Merge** button in the FFmpeg Cutter toolbar to open the Merge Segments window.
+2. The **Source Folder** will be pre-filled with your current project folder (which contains the segment subfolders created during cutting).
+3. Select your **Merged Output Folder** — this is where all final merged files will be saved. This folder is remembered between sessions.
+4. The preview panel shows exactly which segments will be merged and what the output filenames will be. For example:
+   ```
+   [my_vacation/]
+       my_vacation_part_001.mp4
+       my_vacation_part_002.mp4
+       my_vacation_part_003.mp4
+     -> my_vacation_vffedited.mp4
+   ```
+5. Click **Merge All** to losslessly concatenate all segment groups in one pass.
+
+> **Note:** Output filenames are automatically sanitized (special characters replaced with underscores) and suffixed with `_vffedited` to clearly distinguish them from source files.
+
+* **Cleanup:** Use the **Cleanup** button inside the FFmpeg Cutter to automatically sweep all the leftover files (cutlists, log files etc) into a `delete` folder to keep your workspace tidy.
 
 ---
 
 ## ⚙️ Requirements
 
 * **Python 3.x**
-* **LosslessCut
-* **FFmpeg** (Standalone or via LosslessCut)
+* **FFmpeg**
 * **VirtualDub2** (build 44282 or similar)
 * **HandBrake** (For proxy generation)
 

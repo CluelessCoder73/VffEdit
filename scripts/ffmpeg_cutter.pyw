@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import subprocess
@@ -13,6 +14,7 @@ from tkinter import ttk, filedialog, messagebox
 # --- Settings ---
 CUTLIST_SUFFIX = ".cutlist.txt"
 LOG_FILENAME_TEMPLATE = "ffmpeg_log-{timestamp}.log"
+CONFIG_FILE = Path(__file__).parent / "ffmpeg_cutter_config.json"
 
 # --- Cleanup Tool Constants ---
 CORRESPONDING_EXTENSIONS = [
@@ -28,6 +30,23 @@ ORIGINALS_EXT = [
     '.vdscript',
     '_frame_log.txt'
 ]
+
+# --- Config Helpers ---
+def load_config():
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_config(data):
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Warning: could not save config: {e}")
 
 # --- Helper Functions (Cutter) ---
 def parse_timecode_cutlist(cutlist_path):
@@ -133,6 +152,80 @@ def collect_output_segment_folders(folder, video_files):
         if os.path.isdir(candidate):
             folders.append(candidate)
     return folders
+
+# --- Merge / Sanitize Helpers ---
+def sanitize_filename(name):
+    """Replace any character that isn't alphanumeric, underscore, hyphen, or dot with underscore.
+    Collapse consecutive underscores, and strip leading/trailing underscores/hyphens."""
+    sanitized = re.sub(r'[^\w\-.]', '_', name)      # replace bad chars
+    sanitized = re.sub(r'_+', '_', sanitized)        # collapse runs of underscores
+    sanitized = sanitized.strip('_').strip('-')       # strip leading/trailing _ and -
+    return sanitized
+
+def find_segment_groups(source_dir):
+    """Scan source_dir for subdirectories that contain _part_NNN video files.
+    Returns a list of (subdir_path, stem, ext, sorted_part_files).
+    """
+    video_exts = ('.mp4', '.mkv', '.mov', '.avi', '.ts', '.wmv')
+    groups = []
+    source_path = Path(source_dir)
+    part_pattern = re.compile(r'^(.+)_part_(\d+)(\..+)$', re.IGNORECASE)
+
+    for subdir in sorted(source_path.iterdir()):
+        if not subdir.is_dir():
+            continue
+        parts = []
+        stem = None
+        ext = None
+        for f in subdir.iterdir():
+            if f.is_file() and f.suffix.lower() in video_exts:
+                m = part_pattern.match(f.name)
+                if m:
+                    parts.append((int(m.group(2)), f))
+                    if stem is None:
+                        stem = m.group(1)
+                        ext = m.group(3)
+        if parts:
+            parts.sort(key=lambda x: x[0])
+            groups.append((subdir, stem, ext, [p[1] for p in parts]))
+    return groups
+
+def merge_group(subdir, stem, ext, part_files, output_dir, log_callback):
+    """Concatenate part_files into output_dir/{sanitized_stem}_vffedited{ext} using ffmpeg concat demuxer."""
+    sanitized_stem = sanitize_filename(stem)
+    out_name = f"{sanitized_stem}_vffedited{ext}"
+    output_path = Path(output_dir) / out_name
+
+    # Write concat list
+    concat_list_path = subdir / "_concat_list.txt"
+    with open(concat_list_path, 'w', encoding='utf-8') as cl:
+        for pf in part_files:
+            # ffmpeg concat demuxer requires forward slashes
+            safe_path = str(pf).replace('\\', '/')
+            cl.write(f"file '{safe_path}'\n")
+
+    cmd = (
+        f"ffmpeg -y -f concat -safe 0 -i \"{concat_list_path}\" "
+        f"-c copy \"{output_path}\""
+    )
+    log_callback(f"Merging: {stem}{ext} -> {out_name}\n  CMD: {cmd}\n")
+
+    ret = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    log_callback(ret.stdout)
+    log_callback(ret.stderr)
+
+    # Clean up temp concat list
+    try:
+        concat_list_path.unlink()
+    except Exception:
+        pass
+
+    if ret.returncode != 0:
+        log_callback(f"  ERROR: ffmpeg returned code {ret.returncode}\n")
+        return False
+
+    log_callback(f"  Done: {output_path}\n")
+    return True
 
 # --- Tooltip Helper ---
 class ToolTip:
@@ -360,11 +453,17 @@ class FFmpegCutterApp:
         btn_frame = ttk.Frame(self.root)
         btn_frame.pack(anchor="ne", padx=10, pady=5)
 
-        cleanup_button = ttk.Button(btn_frame, text="🧹 Cleanup", command=self.open_cleanup)
-        cleanup_button.pack(side="left", padx=(0,5))
+        merge_button = ttk.Button(btn_frame, text="Merge", command=self.open_merge)
+        merge_button.pack(side="left", padx=(0, 5))
+
+        cleanup_button = ttk.Button(btn_frame, text="Cleanup", command=self.open_cleanup)
+        cleanup_button.pack(side="left", padx=(0, 5))
 
         help_button = ttk.Button(btn_frame, text="? Help", command=self.show_help)
         help_button.pack(side="left")
+
+    def open_merge(self):
+        MergeToolWindow(self.root, self.selected_dir_var.get())
 
     def open_cleanup(self):
         CleanupToolWindow(self.root, self.selected_dir_var.get())
@@ -412,17 +511,206 @@ Default values can be changed by editing this file. Look for:
         help_win = tk.Toplevel(self.root)
         help_win.title("FFmpeg Cutter Help")
         help_win.geometry("520x600")
-        help_win.transient(self.root) 
+        help_win.transient(self.root)
         
         text_area = tk.Text(help_win, wrap="word", padx=10, pady=10, font=("Consolas", 9))
         text_area.insert("1.0", msg)
-        text_area.config(state="disabled") 
+        text_area.config(state="disabled")
         
         scrollbar = ttk.Scrollbar(help_win, command=text_area.yview)
         text_area.configure(yscrollcommand=scrollbar.set)
         
         scrollbar.pack(side="right", fill="y")
         text_area.pack(side="left", fill="both", expand=True)
+
+
+# --- Merge Tool Window Class ---
+class MergeToolWindow:
+    def __init__(self, master, default_source_dir):
+        self.window = tk.Toplevel(master)
+        self.window.title("Merge Segments")
+        self.window.geometry("600x520")
+        self.window.transient(master)
+        self.window.resizable(True, True)
+
+        self.source_dir = tk.StringVar(value="" if is_system32_path(default_source_dir) else default_source_dir)
+
+        # Load persisted merge output dir
+        cfg = load_config()
+        saved_merge_dir = cfg.get("merge_output_dir", "")
+        if saved_merge_dir and os.path.isdir(saved_merge_dir):
+            merge_dir_val = saved_merge_dir
+        else:
+            merge_dir_val = ""
+        self.merge_output_dir = tk.StringVar(value=merge_dir_val)
+
+        self.build_ui()
+        self._refresh_preview()
+
+    def build_ui(self):
+        padding = {"padx": 10, "pady": 4}
+        main = ttk.Frame(self.window)
+        main.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # --- Source folder ---
+        ttk.Label(main, text="Source Folder (containing segment subfolders):").grid(
+            row=0, column=0, columnspan=3, sticky=tk.W, **padding)
+        ttk.Entry(main, textvariable=self.source_dir, state="readonly", width=52).grid(
+            row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), **padding)
+        ttk.Button(main, text="Browse", command=self.browse_source).grid(
+            row=1, column=2, sticky=tk.W, **padding)
+
+        # --- Merge output folder ---
+        ttk.Label(main, text="Merged Output Folder:").grid(
+            row=2, column=0, columnspan=3, sticky=tk.W, padx=10, pady=(10, 2))
+        ttk.Entry(main, textvariable=self.merge_output_dir, state="readonly", width=52).grid(
+            row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), **padding)
+        ttk.Button(main, text="Browse", command=self.browse_output).grid(
+            row=3, column=2, sticky=tk.W, **padding)
+
+        # --- Preview label ---
+        ttk.Label(main, text="Segments found (preview):").grid(
+            row=4, column=0, columnspan=3, sticky=tk.W, padx=10, pady=(10, 2))
+
+        # --- Preview text box ---
+        preview_frame = ttk.Frame(main)
+        preview_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=2)
+        main.rowconfigure(5, weight=1)
+        main.columnconfigure(0, weight=1)
+        main.columnconfigure(1, weight=1)
+
+        self.preview_text = tk.Text(
+            preview_frame, wrap="none", height=10,
+            font=("Consolas", 9), state="disabled", bg="#f8f8f8")
+        sb_y = ttk.Scrollbar(preview_frame, orient="vertical", command=self.preview_text.yview)
+        sb_x = ttk.Scrollbar(preview_frame, orient="horizontal", command=self.preview_text.xview)
+        self.preview_text.configure(yscrollcommand=sb_y.set, xscrollcommand=sb_x.set)
+        sb_y.pack(side="right", fill="y")
+        sb_x.pack(side="bottom", fill="x")
+        self.preview_text.pack(side="left", fill="both", expand=True)
+
+        # --- Refresh & Merge buttons ---
+        btn_row = ttk.Frame(main)
+        btn_row.grid(row=6, column=0, columnspan=3, sticky=tk.W, padx=10, pady=8)
+        ttk.Button(btn_row, text="Refresh Preview", command=self._refresh_preview).pack(side="left", padx=(0, 8))
+        self.merge_btn = ttk.Button(btn_row, text="Merge All", command=self._start_merge)
+        self.merge_btn.pack(side="left")
+
+        # --- Status label ---
+        self.status_var = tk.StringVar(value="")
+        ttk.Label(main, textvariable=self.status_var, wraplength=560).grid(
+            row=7, column=0, columnspan=3, sticky=tk.W, padx=10, pady=(0, 4))
+
+        # Trace changes to source_dir
+        self.source_dir.trace_add("write", lambda *a: self._refresh_preview())
+
+    def browse_source(self):
+        init = self.source_dir.get()
+        if is_system32_path(init) or not os.path.isdir(init):
+            init = ""
+        folder = filedialog.askdirectory(initialdir=init, title="Select Source Folder", parent=self.window)
+        if folder:
+            self.source_dir.set(folder)
+
+    def browse_output(self):
+        init = self.merge_output_dir.get()
+        if is_system32_path(init) or not os.path.isdir(init):
+            init = ""
+        folder = filedialog.askdirectory(initialdir=init, title="Select Merged Output Folder", parent=self.window)
+        if folder:
+            self.merge_output_dir.set(folder)
+            # Persist the chosen folder immediately
+            cfg = load_config()
+            cfg["merge_output_dir"] = folder
+            save_config(cfg)
+
+    def _refresh_preview(self):
+        src = self.source_dir.get()
+        self.preview_text.config(state="normal")
+        self.preview_text.delete("1.0", "end")
+
+        if not src or not os.path.isdir(src):
+            self.preview_text.insert("end", "No valid source folder selected.")
+            self.preview_text.config(state="disabled")
+            self.merge_btn.config(state="disabled")
+            return
+
+        groups = find_segment_groups(src)
+        if not groups:
+            self.preview_text.insert(
+                "end",
+                "No segment subfolders found.\n\n"
+                "Expected subfolders containing files like:\n"
+                "  my_vacation_part_001.mp4\n"
+                "  my_vacation_part_002.mp4"
+            )
+            self.preview_text.config(state="disabled")
+            self.merge_btn.config(state="disabled")
+            return
+
+        for subdir, stem, ext, parts in groups:
+            sanitized = sanitize_filename(stem)
+            out_name = f"{sanitized}_vffedited{ext}"
+            self.preview_text.insert("end", f"[{subdir.name}/]\n")
+            for pf in parts:
+                self.preview_text.insert("end", f"    {pf.name}\n")
+            self.preview_text.insert("end", f"  -> {out_name}\n\n")
+
+        self.preview_text.config(state="disabled")
+        self.merge_btn.config(state="normal")
+
+    def _start_merge(self):
+        src = self.source_dir.get()
+        out_dir = self.merge_output_dir.get()
+
+        if not src or not os.path.isdir(src):
+            messagebox.showerror("Error", "Please select a valid source folder.", parent=self.window)
+            return
+        if not out_dir or not os.path.isdir(out_dir):
+            messagebox.showerror("Error", "Please select a valid merge output folder.", parent=self.window)
+            return
+
+        groups = find_segment_groups(src)
+        if not groups:
+            messagebox.showinfo("Info", "No segment groups found to merge.", parent=self.window)
+            return
+
+        self.merge_btn.config(state="disabled")
+        self.status_var.set("Merging... please wait.")
+        threading.Thread(target=self._merge_worker, args=(groups, out_dir), daemon=True).start()
+
+    def _merge_worker(self, groups, out_dir):
+        log_lines = []
+        success = 0
+        errors = 0
+
+        def log_cb(msg):
+            log_lines.append(msg)
+
+        for subdir, stem, ext, parts in groups:
+            ok = merge_group(subdir, stem, ext, parts, out_dir, log_cb)
+            if ok:
+                success += 1
+            else:
+                errors += 1
+
+        # Write log to output folder
+        timestamp = datetime.now().strftime("%y-%m-%d_%H-%M-%S")
+        log_path = Path(out_dir) / f"merge_log-{timestamp}.log"
+        try:
+            with open(log_path, 'w', encoding='utf-8') as lf:
+                lf.write("".join(log_lines))
+        except Exception as e:
+            log_lines.append(f"Could not write log: {e}\n")
+
+        summary = f"Merge complete: {success} succeeded, {errors} failed.\nLog: {log_path.name}"
+        self.window.after(0, lambda: self._merge_done(summary))
+
+    def _merge_done(self, summary):
+        self.status_var.set(summary)
+        self.merge_btn.config(state="normal")
+        messagebox.showinfo("Merge Complete", summary, parent=self.window)
+
 
 # --- Cleanup Tool Window Class ---
 class CleanupToolWindow:
@@ -466,13 +754,13 @@ class CleanupToolWindow:
     def validate_folder(self):
         folder = self.folder.get().strip()
         if not folder:
-            self.status_label.config(text="⚠️ No folder selected.", foreground="#888888")
+            self.status_label.config(text="No folder selected.", foreground="#888888")
             self.run_button.config(state="disabled")
         elif is_system32_path(folder):
-            self.status_label.config(text="⚠️ Cleanup is disabled for system directory (System32).", foreground="red")
+            self.status_label.config(text="Cleanup is disabled for system directory (System32).", foreground="red")
             self.run_button.config(state="disabled")
         elif not os.path.isdir(folder):
-            self.status_label.config(text="⚠️ Selected path is not a valid directory.", foreground="#d9534f")
+            self.status_label.config(text="Selected path is not a valid directory.", foreground="#d9534f")
             self.run_button.config(state="disabled")
         else:
             self.status_label.config(text="")
@@ -543,7 +831,6 @@ class CleanupToolWindow:
             "3. Click Run Cleanup.\n"
             "4. Inspect the 'delete' folder before permanently deleting anything."
         )
-        # Create a scrollable help window
         help_win = tk.Toplevel(self.window)
         help_win.title("Cleanup Tool Help")
         help_win.geometry("500x550")
@@ -551,13 +838,14 @@ class CleanupToolWindow:
         
         text_area = tk.Text(help_win, wrap="word", padx=10, pady=10, font=("Consolas", 9))
         text_area.insert("1.0", help_text)
-        text_area.config(state="disabled") 
+        text_area.config(state="disabled")
         
         scrollbar = ttk.Scrollbar(help_win, command=text_area.yview)
         text_area.configure(yscrollcommand=scrollbar.set)
         
         scrollbar.pack(side="right", fill="y")
         text_area.pack(side="left", fill="both", expand=True)
+
 
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else ""
