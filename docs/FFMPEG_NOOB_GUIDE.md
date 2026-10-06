@@ -1,23 +1,53 @@
 # FFmpeg for Beginners: A Quick Start Guide
 
-Welcome to the powerful world of FFmpeg! While it might seem intimidating, FFmpeg is the engine that makes the VffEdit workflow possible. This guide will show you how to set it up using the tools you already have.
+Welcome to the powerful world of FFmpeg! While it might seem intimidating, FFmpeg is the engine that makes the VffEdit workflow possible. This guide will show you how to install, set up, and keep it updated on Windows.
 
 ---
 
-## 1. Easy Setup (The LosslessCut Method)
+## 1. Easy Setup (The Official Methods)
 
-If you are using **LosslessCut**, you already have FFmpeg on your computer! You don't need to download anything else. You just need to tell Windows where it is.
+### Option A: The Automated Way (Recommended)
+If you are on Windows 10 or 11, the easiest way to install FFmpeg is using Windows Package Manager (`winget`).
 
-1. **Find your FFmpeg:** Open your LosslessCut folder. Go to:
-`resources` > `ffmpeg.exe`
-2. **Copy the Path:** Click the address bar at the top of that folder and copy the text (e.g., `C:\Desktop\LosslessCut-win-x64\resources`).
-3. **Add to Windows PATH:**
+1. Open **Command Prompt** or **PowerShell** (search `cmd` in the Start menu).
+2. Type the following command and press **Enter**:
+   ```cmd
+   winget install Gyan.FFmpeg
+
+```
+
+3. Restart your command prompt window.
+4. **Verify:** Type `ffmpeg -version`. If text appears displaying the version info, you are ready to go!
+
+#### How to Keep It Updated:
+
+Because FFmpeg receives frequent updates and performance fixes, you can easily update it anytime using `winget` by running:
+
+```cmd
+winget upgrade Gyan.FFmpeg
+
+```
+
+*(Tip: You can also update all apps on your system managed by winget at once by running `winget upgrade --all`)*
+
+---
+
+### Option B: The Manual Download Way
+
+If you prefer downloading the files manually:
+
+1. **Download:** Go to [gyan.dev/ffmpeg/builds](https://www.gyan.dev/ffmpeg/builds/) and download the **`ffmpeg-git-full.7z`** or **`ffmpeg-release-full.7z`** package.
+2. **Extract:** Extract the folder to a permanent location on your computer (e.g., `C:\Program Files\ffmpeg` or `C:\ffmpeg`).
+3. **Locate the `bin` folder:** Navigate inside the extracted folder to find the `bin` directory (where `ffmpeg.exe` is located, e.g., `C:\ffmpeg\bin`). Copy this full path.
+4. **Add to Windows PATH:**
 * Search Windows for **"Edit the system environment variables."**
-* Click **Environment Variables** > Find **Path** in the "System variables" list > Click **Edit**.
-* Click **New** and paste the path you copied.
-* **Verify:** Open a Command Prompt (cmd) and type `ffmpeg -version`. If text appears, you are ready to go!
+* Click **Environment Variables...**
+* Under **System variables**, select **Path** and click **Edit...**
+* Click **New** and paste the path to your `bin` folder (e.g., `C:\ffmpeg\bin`).
+* Click **OK** on all windows to save.
 
 
+5. **Verify:** Open a new Command Prompt window and type `ffmpeg -version`.
 
 ---
 
@@ -79,4 +109,6 @@ ffmpeg -i "jittery_video.mp4" -c copy -video_track_timescale 90k "fixed_video.mp
 * **Don't Re-encode:** Unless you specifically want to reduce the file size or change quality, always try to use `-c copy`. It preserves your original quality and saves hours of time.
 * **Output Names:** FFmpeg won't automatically overwrite files. If you want to overwrite a file without being asked, add `-y` to the start of your command (e.g., `ffmpeg -y -i ...`).
 
----
+```
+
+```
